@@ -1,0 +1,16 @@
+<WebView
+    android:id="@+id/webview"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+
+<ProgressBar
+    android:id="@+id/progress"
+    style="?android:attr/progressBarStyleHorizontal"
+    android:layout_width="match_parent"
+    android:layout_height="3dp"
+    android:layout_gravity="top"
+    android:indeterminate="false"
+    android:max="100"
+    android:progress="0"
+    android:progressTint="#3b82f6"
+    android:visibility="gone" />
