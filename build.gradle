@@ -1,37 +1,3 @@
 plugins {
-    id 'com.android.application'
-}
-
-android {
-    namespace 'com.yaaro.app'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.yaaro.app"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0.0-test"
-    }
-
-    buildTypes {
-        debug {
-            minifyEnabled false
-        }
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-}
-
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.webkit:webkit:1.10.0'
-    implementation 'com.google.android.material:material:1.11.0'
+    id 'com.android.application' version '8.2.2' apply false
 }
