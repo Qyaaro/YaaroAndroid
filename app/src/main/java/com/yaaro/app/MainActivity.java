@@ -1,6 +1,8 @@
 package com.yaaro.app;
 
 import android.Manifest;
+import android.media.AudioManager;
+import android.webkit.JavascriptInterface;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -96,6 +98,22 @@ public class MainActivity extends AppCompatActivity {
         settings.setDisplayZoomControls(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+
+        // Bridge for real speakerphone control from web app
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void setSpeakerphoneOn(boolean on) {
+                runOnUiThread(() -> {
+                    try {
+                        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+                        if (am != null) {
+                            am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                            am.setSpeakerphoneOn(on);
+                        }
+                    } catch (Exception ignored) {}
+                });
+            }
+        }, "YaaroAndroid");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
