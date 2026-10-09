@@ -34,7 +34,7 @@ import androidx.core.content.ContextCompat;
  */
 public class MainActivity extends AppCompatActivity {
 
-    private static final String YAARO_URL = YAARO_URL = "https://qyaaro.github.io/yaaro-web/";
+    private static final String YAARO_URL = "https://qyaaro.github.io/yaaro-web/";
     private static final int PERMISSION_REQUEST_CODE = 1001;
 
     private WebView webView;
