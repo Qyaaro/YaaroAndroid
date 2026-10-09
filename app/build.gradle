@@ -10,8 +10,17 @@ android {
         applicationId "com.yaaro.app"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0.0-test"
+        versionCode 2
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("yaaro-release.jks")
+            storePassword "YaaroStore2026"
+            keyAlias "yaaro"
+            keyPassword "YaaroStore2026"
+        }
     }
 
     buildTypes {
@@ -20,6 +29,7 @@ android {
         }
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
