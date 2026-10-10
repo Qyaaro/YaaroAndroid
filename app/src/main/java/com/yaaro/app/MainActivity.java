@@ -5,6 +5,7 @@ import android.media.AudioManager;
 import android.webkit.JavascriptInterface;
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -28,10 +29,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-/**
- * Yaaro Android test wrapper.
- * Loads the EXISTING Netlify web app. Does not modify Yaaro web code.
- */
+import com.google.firebase.messaging.FirebaseMessaging;
+
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends AppCompatActivity {
 
     private static final String YAARO_URL = "https://qyaaro.github.io/yaaro-web/";
@@ -41,11 +43,6 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private PermissionRequest pendingWebPermissionRequest;
     private ValueCallback<Uri[]> filePathCallback;
-
-    private final String[] REQUIRED_PERMISSIONS = new String[]{
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO
-    };
 
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -78,8 +75,23 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webview);
         progressBar = findViewById(R.id.progress);
 
+        fetchAndStoreFcmToken();
         setupWebView();
         ensurePermissionsThenLoad();
+    }
+
+    private void fetchAndStoreFcmToken() {
+        try {
+            FirebaseMessaging.getInstance().getToken()
+                    .addOnCompleteListener(task -> {
+                        if (!task.isSuccessful() || task.getResult() == null) return;
+                        String token = task.getResult();
+                        getSharedPreferences("yaaro", MODE_PRIVATE)
+                                .edit()
+                                .putString("fcm_token", token)
+                                .apply();
+                    });
+        } catch (Exception ignored) {}
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -99,7 +111,6 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
-        // Bridge for real speakerphone control from web app
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
             public void setSpeakerphoneOn(boolean on) {
@@ -113,15 +124,18 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Exception ignored) {}
                 });
             }
+
+            @JavascriptInterface
+            public String getFcmToken() {
+                SharedPreferences sp = getSharedPreferences("yaaro", MODE_PRIVATE);
+                String t = sp.getString("fcm_token", "");
+                return t != null ? t : "";
+            }
         }, "YaaroAndroid");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String host = request.getUrl().getHost();
-                if (host != null && host.contains("netlify.app")) {
-                    return false;
-                }
                 if ("https".equals(request.getUrl().getScheme())) {
                     return false;
                 }
@@ -159,10 +173,8 @@ public class MainActivity extends AppCompatActivity {
                     MainActivity.this.filePathCallback.onReceiveValue(null);
                 }
                 MainActivity.this.filePathCallback = filePathCallback;
-
                 Intent intent = fileChooserParams.createIntent();
                 try {
-                    // Allow multiple if web requests it
                     if (fileChooserParams.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) {
                         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                     }
@@ -187,16 +199,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void ensurePermissionsThenLoad() {
-        if (hasAllPermissions()) {
-            webView.loadUrl(YAARO_URL);
-        } else {
-            requestAndroidPermissions();
-            webView.loadUrl(YAARO_URL);
-        }
+        requestAndroidPermissions();
+        webView.loadUrl(YAARO_URL);
     }
 
     private boolean hasAllPermissions() {
-        for (String p : REQUIRED_PERMISSIONS) {
+        for (String p : getRequiredPermissions()) {
             if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
                 return false;
             }
@@ -204,8 +212,18 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
+    private String[] getRequiredPermissions() {
+        List<String> list = new ArrayList<>();
+        list.add(Manifest.permission.CAMERA);
+        list.add(Manifest.permission.RECORD_AUDIO);
+        if (Build.VERSION.SDK_INT >= 33) {
+            list.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
+        return list.toArray(new String[0]);
+    }
+
     private void requestAndroidPermissions() {
-        ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, PERMISSION_REQUEST_CODE);
+        ActivityCompat.requestPermissions(this, getRequiredPermissions(), PERMISSION_REQUEST_CODE);
     }
 
     @Override
