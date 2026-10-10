@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1038056818907",
+    "firebase_url": "https://mychatapp-179f8-default-rtdb.firebaseio.com",
+    "project_id": "mychatapp-179f8",
+    "storage_bucket": "mychatapp-179f8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1038056818907:android:25aa91ad6b6e8b9e5524fe",
+        "android_client_info": {
+          "package_name": "com.yaaro.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFJkdM0b8Dhlsn0x3T6SUE8KokElZJ5w8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
