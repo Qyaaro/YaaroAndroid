@@ -124,7 +124,12 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Exception ignored) {}
                 });
             }
-
+            @JavascriptInterface
+            public void stopRingtone() {
+            runOnUiThread(() -> {
+              YaaroRingtonePlayer.stop();
+    });
+}
             @JavascriptInterface
             public String getFcmToken() {
                 SharedPreferences sp = getSharedPreferences("yaaro", MODE_PRIVATE);
