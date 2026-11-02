@@ -15,7 +15,7 @@ import com.google.firebase.messaging.RemoteMessage;
 public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "YaaroFCM";
-    private static final String CHANNEL_ID = "yaaro_calls";
+    private static final String CHANNEL_ID = "yaaro_calls_v2";
 
     @Override
     public void onNewToken(String token) {
@@ -94,6 +94,18 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
             );
             channel.setDescription("Incoming voice and video calls");
             channel.enableVibration(true);
+            android.net.Uri ringtoneUri =
+        android.media.RingtoneManager.getDefaultUri(
+                android.media.RingtoneManager.TYPE_RINGTONE
+        );
+
+android.media.AudioAttributes audioAttributes =
+        new android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+
+channel.setSound(ringtoneUri, audioAttributes);
             NotificationManager nm = getSystemService(NotificationManager.class);
             if (nm != null) {
                 nm.createNotificationChannel(channel);
