@@ -15,7 +15,7 @@ import com.google.firebase.messaging.RemoteMessage;
 public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "YaaroFCM";
-    private static final String CHANNEL_ID = "yaaro_calls_v2";
+    private static final String CHANNEL_ID = "yaaro_calls_v3";
 
     @Override
     public void onNewToken(String token) {
@@ -76,7 +76,7 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 .setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
                 .setContentIntent(pending);
 
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
