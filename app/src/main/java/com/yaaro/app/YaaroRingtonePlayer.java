@@ -22,8 +22,28 @@ public class YaaroRingtonePlayer {
             );
 
             if (ringtone != null) {
-                ringtone.play();
-            }
+    if (android.os.Build.VERSION.SDK_INT >= 21) {
+        android.media.AudioAttributes attributes =
+                new android.media.AudioAttributes.Builder()
+                        .setUsage(
+                            android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+                        )
+                        .setContentType(
+                            android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION
+                        )
+                        .build();
+
+        ringtone.setAudioAttributes(attributes);
+    }
+
+    ringtone.play();
+
+    android.util.Log.d(
+        "YaaroRingtone",
+        "Ringtone play requested: " + ringtone.isPlaying()
+    );
+}
+                
         } catch (Exception e) {
             android.util.Log.e(
                     "YaaroRingtone",
