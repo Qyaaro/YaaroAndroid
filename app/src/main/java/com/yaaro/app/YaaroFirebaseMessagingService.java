@@ -52,11 +52,17 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 type = message.getData().get("type");
             }
         }
-        
-        if ("call".equals(type)) {
-        YaaroRingtonePlayer.start(this);
+if ("call_cancel".equals(type)) {
+    YaaroRingtonePlayer.stop();
+    return;
 }
-        showNotification(title, body, type);
+
+if ("call".equals(type)) {
+    YaaroRingtonePlayer.start(this);
+}
+
+showNotification(title, body, type);
+        
     }
 
     private void showNotification(String title, String body, String type) {
