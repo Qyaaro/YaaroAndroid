@@ -39,6 +39,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String YAARO_URL = "https://qyaaro.github.io/yaaro-web/";
     private static final int PERMISSION_REQUEST_CODE = 1001;
 
+    public static volatile boolean isAppForeground = false;
+    
     private WebView webView;
     private ProgressBar progressBar;
     private PermissionRequest pendingWebPermissionRequest;
@@ -256,15 +258,18 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onResume() {
-        super.onResume();
-        if (webView != null) webView.onResume();
-    }
+    super.onResume();
+    isAppForeground = true;
+    YaaroRingtonePlayer.stop();
+    if (webView != null) webView.onResume();
+}
 
     @Override
     protected void onPause() {
-        if (webView != null) webView.onPause();
-        super.onPause();
-    }
+    isAppForeground = false;
+    if (webView != null) webView.onPause();
+    super.onPause();
+}
 
     @Override
     protected void onDestroy() {
