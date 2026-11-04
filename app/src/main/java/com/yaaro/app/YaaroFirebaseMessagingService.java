@@ -58,9 +58,7 @@ if ("call_cancel".equals(type)) {
 }
 
 if ("call".equals(type)) {
-    if (!MainActivity.isAppForeground) {
-        YaaroRingtonePlayer.start(this);
-    }
+    YaaroRingtonePlayer.start(this);
 }
 
 showNotification(title, body, type);
