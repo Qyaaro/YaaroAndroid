@@ -260,7 +260,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
     super.onResume();
     isAppForeground = true;
-    YaaroRingtonePlayer.stop();
     if (webView != null) webView.onResume();
 }
 
