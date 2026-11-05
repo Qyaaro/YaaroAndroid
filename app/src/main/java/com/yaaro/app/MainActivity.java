@@ -41,6 +41,22 @@ public class MainActivity extends AppCompatActivity {
 
     public static volatile boolean isAppForeground = false;
     
+private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
+    registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            if (result.getResultCode() == RESULT_OK
+                    && result.getData() != null) {
+
+                Uri uri = result.getData().getParcelableExtra(
+                    android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI
+                );
+
+                YaaroRingtonePlayer.saveRingtone(this, uri);
+            }
+        }
+    );
+
     private WebView webView;
     private ProgressBar progressBar;
     private PermissionRequest pendingWebPermissionRequest;
@@ -126,6 +142,29 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Exception ignored) {}
                 });
             }
+            
+@JavascriptInterface
+public void chooseRingtone() {
+    runOnUiThread(() -> {
+        try {
+            Intent intent = new Intent(
+                android.media.RingtoneManager.ACTION_RINGTONE_PICKER
+            );
+            intent.putExtra(
+                android.media.RingtoneManager.EXTRA_RINGTONE_TYPE,
+                android.media.RingtoneManager.TYPE_RINGTONE
+            );
+            intent.putExtra(
+                android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT,
+                false
+            );
+            ringtonePickerLauncher.launch(intent);
+        } catch (Exception e) {
+            android.util.Log.e("YaaroRingtone", "Picker failed", e);
+        }
+    });
+}
+
             @JavascriptInterface
             public void stopRingtone() {
             runOnUiThread(() -> {
