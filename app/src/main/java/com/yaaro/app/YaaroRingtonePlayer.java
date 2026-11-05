@@ -1,6 +1,7 @@
 package com.yaaro.app;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -8,14 +9,31 @@ import android.net.Uri;
 public class YaaroRingtonePlayer {
 
     private static Ringtone ringtone;
+    private static final String PREFS_NAME = "yaaro_ringtone";
+private static final String KEY_RINGTONE_URI = "selected_ringtone";
+
+public static void saveRingtone(Context context, Uri uri) {
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_RINGTONE_URI, uri != null ? uri.toString() : "")
+            .apply();
+}
 
     public static synchronized void start(Context context) {
         stop();
 
         try {
-            Uri uri = RingtoneManager.getDefaultUri(
-                    RingtoneManager.TYPE_RINGTONE
-            );
+        SharedPreferences prefs = context.getSharedPreferences(
+        PREFS_NAME, Context.MODE_PRIVATE
+);
+
+String savedUri = prefs.getString(KEY_RINGTONE_URI, "");
+
+Uri uri = savedUri != null && !savedUri.isEmpty()
+        ? Uri.parse(savedUri)
+        : RingtoneManager.getDefaultUri(
+                RingtoneManager.TYPE_RINGTONE
+        );
 
             ringtone = RingtoneManager.getRingtone(
                     context.getApplicationContext(), uri
