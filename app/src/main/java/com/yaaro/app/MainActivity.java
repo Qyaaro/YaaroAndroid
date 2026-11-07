@@ -98,9 +98,16 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
         ensurePermissionsThenLoad();
     }
    @Override
-   protected void onNewIntent(Intent intent) {
+protected void onNewIntent(Intent intent) {
     super.onNewIntent(intent);
     setIntent(intent);
+
+    if (webView != null) {
+        webView.evaluateJavascript(
+            "if (typeof checkNativeAccept === 'function') checkNativeAccept();",
+            null
+        );
+    }
 }
     private void fetchAndStoreFcmToken() {
         try {
@@ -137,7 +144,7 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
             
 @JavascriptInterface
 public String getPendingCallId() {
-    Intent intent = getIntent();
+    Intent intent = MainActivity.this.getIntent();
     if (intent == null) return "";
 
     String action = intent.getStringExtra(
