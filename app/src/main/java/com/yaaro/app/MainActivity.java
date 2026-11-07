@@ -97,7 +97,11 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
         setupWebView();
         ensurePermissionsThenLoad();
     }
-
+   @Override
+   protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+}
     private void fetchAndStoreFcmToken() {
         try {
             FirebaseMessaging.getInstance().getToken()
@@ -130,6 +134,24 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
         webView.addJavascriptInterface(new Object() {
+            
+@JavascriptInterface
+public String getPendingCallId() {
+    Intent intent = getIntent();
+    if (intent == null) return "";
+
+    String action = intent.getStringExtra(
+        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+    );
+
+    if (!"accept".equals(action)) return "";
+
+    String callId = intent.getStringExtra(
+        YaaroFirebaseMessagingService.EXTRA_CALL_ID
+    );
+
+    return callId != null ? callId : "";
+}
             @JavascriptInterface
             public void setSpeakerphoneOn(boolean on) {
                 runOnUiThread(() -> {
