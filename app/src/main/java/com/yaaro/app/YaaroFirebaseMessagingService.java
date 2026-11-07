@@ -82,11 +82,10 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
         // Tap / Accept → open app
         Intent openIntent = new Intent(this, MainActivity.class);
-        openIntent.setAction(ACTION_ACCEPT);
+        openIntent.setAction(Intent.ACTION_MAIN);
         openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        openIntent.putExtra(EXTRA_FCM_ACTION, "accept");
         openIntent.putExtra(EXTRA_CALL_ID, callId);
         openIntent.putExtra(EXTRA_FROM_NAME, fromName);
 
