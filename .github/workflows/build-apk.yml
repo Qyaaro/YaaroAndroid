@@ -31,11 +31,9 @@ jobs:
       - name: Ensure Gradle Wrapper JAR
         run: |
           mkdir -p gradle/wrapper
-          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            curl -sL -o gradle/wrapper/gradle-wrapper.jar https://github.com/gradle/gradle/raw/v8.5.0/gradle/wrapper/gradle-wrapper.jar
-          fi
+          curl -fSL --retry 3 -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar
+          unzip -t gradle/wrapper/gradle-wrapper.jar
           chmod +x gradlew
-
       - name: Build debug + release APK
         run: |
           chmod +x gradlew
