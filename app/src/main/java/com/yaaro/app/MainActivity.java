@@ -104,7 +104,8 @@ protected void onNewIntent(Intent intent) {
 
     if (webView != null) {
         webView.evaluateJavascript(
-            "if (typeof checkNativeAccept === 'function') checkNativeAccept();",
+            "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
+            "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
             null
         );
     }
@@ -152,6 +153,23 @@ public String getPendingCallId() {
     );
 
     if (!"accept".equals(action)) return "";
+
+    String callId = intent.getStringExtra(
+        YaaroFirebaseMessagingService.EXTRA_CALL_ID
+    );
+
+    return callId != null ? callId : "";
+}
+@JavascriptInterface
+public String getPendingDeclineCallId() {
+    Intent intent = MainActivity.this.getIntent();
+    if (intent == null) return "";
+
+    String action = intent.getStringExtra(
+        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+    );
+
+    if (!"decline".equals(action)) return "";
 
     String callId = intent.getStringExtra(
         YaaroFirebaseMessagingService.EXTRA_CALL_ID
@@ -225,10 +243,11 @@ public void chooseRingtone() {
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(View.GONE);
-            view.evaluateJavascript(
-    "if (typeof checkNativeAccept === 'function') checkNativeAccept();",
-    null
-);
+                view.evaluateJavascript(
+                "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
+                "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
+                null
+              );
             }
         });
 
