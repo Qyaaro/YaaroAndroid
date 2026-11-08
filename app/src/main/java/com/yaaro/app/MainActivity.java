@@ -142,7 +142,23 @@ protected void onNewIntent(Intent intent) {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
         webView.addJavascriptInterface(new Object() {
-            
+   
+@JavascriptInterface
+public void setFirebaseIdToken(String token) {
+    getSharedPreferences("yaaro", MODE_PRIVATE)
+        .edit()
+        .putString("firebase_id_token", token == null ? "" : token)
+        .apply();
+}
+
+@JavascriptInterface
+public void setFirebaseUid(String uid) {
+    getSharedPreferences("yaaro", MODE_PRIVATE)
+        .edit()
+        .putString("firebase_uid", uid == null ? "" : uid)
+        .apply();
+}
+         
 @JavascriptInterface
 public String getPendingCallId() {
     Intent intent = MainActivity.this.getIntent();
