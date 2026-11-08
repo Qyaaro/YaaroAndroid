@@ -174,8 +174,15 @@ public String getPendingCallId() {
         YaaroFirebaseMessagingService.EXTRA_CALL_ID
     );
 
-    return callId != null ? callId : "";
+    if (callId != null && !callId.isEmpty()) {
+    intent.removeExtra(
+        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+    );
+    return callId;
 }
+return "";
+}
+            
 @JavascriptInterface
 public String getPendingDeclineCallId() {
     Intent intent = MainActivity.this.getIntent();
