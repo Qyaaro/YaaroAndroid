@@ -225,6 +225,10 @@ public void chooseRingtone() {
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(View.GONE);
+            view.evaluateJavascript(
+    "if (typeof checkNativeAccept === 'function') checkNativeAccept();",
+    null
+);
             }
         });
 
