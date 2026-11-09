@@ -176,9 +176,39 @@ public String getPendingCallId() {
 
     return callId != null ? callId : "";
 }
+
+@JavascriptInterface
+public void completePendingAccept(String completedCallId) {
+    if (completedCallId == null || completedCallId.isEmpty()) return;
+
+    runOnUiThread(() -> {
+        Intent intent = getIntent();
+        if (intent == null) return;
+
+        String action = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+        );
+
+        String callId = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_CALL_ID
+        );
+
+        if (!"accept".equals(action) ||
+            !completedCallId.equals(callId)) return;
+
+        intent.removeExtra(
+            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+        );
+        intent.removeExtra(
+            YaaroFirebaseMessagingService.EXTRA_CALL_ID
+        );
+
+        YaaroRingtonePlayer.stop();
+    });
+}
             
 @JavascriptInterface
-public String getPendingDeclineCallId() {
+    public String getPendingDeclineCallId() {
     Intent intent = MainActivity.this.getIntent();
     if (intent == null) return "";
 
@@ -364,11 +394,19 @@ public void chooseRingtone() {
         }
     }
 
-    @Override
-    protected void onResume() {
+@Override
+protected void onResume() {
     super.onResume();
     isAppForeground = true;
-    if (webView != null) webView.onResume();
+
+    if (webView != null) {
+        webView.onResume();
+        webView.evaluateJavascript(
+            "if (typeof checkNativeAccept === 'function') " +
+            "checkNativeAccept();",
+            null
+        );
+    }
 }
 
     @Override
