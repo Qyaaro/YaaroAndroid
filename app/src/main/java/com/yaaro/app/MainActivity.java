@@ -349,10 +349,12 @@ public void chooseRingtone() {
     }
 
     private void ensurePermissionsThenLoad() {
-        requestAndroidPermissions();
-        webView.loadUrl(YAARO_URL);
-    }
+    webView.loadUrl(YAARO_URL);
 
+    if (!hasAllPermissions()) {
+        requestAndroidPermissions();
+    }
+}
     private boolean hasAllPermissions() {
         for (String p : getRequiredPermissions()) {
             if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
