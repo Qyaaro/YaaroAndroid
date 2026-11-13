@@ -2,7 +2,7 @@ name: Build Yaaro APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, 'security/signing-hardening' ]
   workflow_dispatch:
 
 jobs:
@@ -34,10 +34,10 @@ jobs:
           curl -fSL --retry 3 -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar
           unzip -t gradle/wrapper/gradle-wrapper.jar
           chmod +x gradlew
-      - name: Build debug + release APK
+      - name: Build debug APK (release signing pending secure key setup)
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -45,8 +45,3 @@ jobs:
           name: Yaaro-app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Yaaro-app-release
-          path: app/build/outputs/apk/release/app-release.apk
