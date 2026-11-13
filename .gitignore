@@ -1,0 +1,10 @@
+# Android signing keys and local credentials
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+local.properties
+*.properties.local
+.env
+.env.*

@@ -15,12 +15,22 @@ android {
         versionName "1.0.0"
     }
 
+    // Release signing credentials come only from CI environment or local environment.
+    // No signing key or password should be committed to this repository.
+    def signingPath = System.getenv("QYAARO_KEYSTORE_PATH")
+    def signingStorePassword = System.getenv("QYAARO_KEYSTORE_PASSWORD")
+    def signingAlias = System.getenv("QYAARO_KEY_ALIAS")
+    def signingKeyPassword = System.getenv("QYAARO_KEY_PASSWORD")
+    def releaseSigningReady = [signingPath, signingStorePassword, signingAlias, signingKeyPassword].every { it != null && !it.isEmpty() }
+
     signingConfigs {
         release {
-            storeFile file("yaaro-release.jks")
-            storePassword "YaaroStore2026"
-            keyAlias "yaaro"
-            keyPassword "YaaroStore2026"
+            if (releaseSigningReady) {
+                storeFile file(signingPath)
+                storePassword signingStorePassword
+                keyAlias signingAlias
+                keyPassword signingKeyPassword
+            }
         }
     }
 
@@ -30,7 +40,9 @@ android {
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
