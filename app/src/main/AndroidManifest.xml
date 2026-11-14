@@ -37,6 +37,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Native call engine placeholder; not started by notification actions. -->
+        <service
+            android:name=".NativeCallService"
+            android:exported="false" />
+
         <service
             android:name=".YaaroFirebaseMessagingService"
             android:exported="false">
