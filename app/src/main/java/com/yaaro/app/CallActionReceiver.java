@@ -9,6 +9,8 @@ import android.util.Log;
 import org.json.JSONObject;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.DataSnapshot;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -34,11 +36,45 @@ public class CallActionReceiver extends BroadcastReceiver {
         if (callId == null || callId.trim().isEmpty()) return;
 
         if (YaaroFirebaseMessagingService.ACTION_ACCEPT.equals(action)) {
-            // Never launch an Activity or claim an accepted/connected call here.
-            // Background WebRTC and microphone foreground-service eligibility
-            // must be established before publishing an answer or changing status.
-            // Leave the incoming notification intact until that integration exists.
-            Log.w("YaaroAccept", "Native background answer not yet available");
+            // Preflight only: verify the authenticated receiver and the live
+            // ringing voice call before attempting native answer integration.
+            // Never launch an Activity, publish "accepted", or start the
+            // microphone from this receiver (Android 14 while-in-use limits).
+            final PendingResult acceptResult = goAsync();
+            FirebaseUser receiver = FirebaseAuth.getInstance().getCurrentUser();
+            if (receiver == null || !receiver.isEmailVerified()) {
+                Log.w("YaaroAccept", "Verified native Firebase session required");
+                acceptResult.finish();
+                return;
+            }
+            final String receiverUid = receiver.getUid();
+            try {
+                FirebaseDatabase.getInstance().getReference("calls").child(callId)
+                    .get().addOnCompleteListener(task -> {
+                        try {
+                            if (!task.isSuccessful() || task.getResult() == null) {
+                                Log.w("YaaroAccept", "Call verification failed");
+                                return;
+                            }
+                            DataSnapshot call = task.getResult();
+                            String to = call.child("to").getValue(String.class);
+                            String type = call.child("type").getValue(String.class);
+                            String status = call.child("status").getValue(String.class);
+                            if (!receiverUid.equals(to) || !"voice".equals(type) ||
+                                    !"ringing".equals(status)) {
+                                Log.w("YaaroAccept", "Not an eligible ringing voice call");
+                                return;
+                            }
+                            Log.i("YaaroAccept",
+                                    "Receiver/call verified; native audio answer still unavailable");
+                        } finally {
+                            acceptResult.finish();
+                        }
+                    });
+            } catch (RuntimeException error) {
+                Log.e("YaaroAccept", "Call preflight failed", error);
+                acceptResult.finish();
+            }
             return;
         }
 
