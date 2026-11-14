@@ -28,7 +28,7 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
     @Override
     public void onNewToken(String token) {
-        Log.d(TAG, "FCM token: " + token);
+        Log.d(TAG, "FCM registration token refreshed");
         getSharedPreferences("yaaro", MODE_PRIVATE)
                 .edit()
                 .putString("fcm_token", token)
@@ -68,6 +68,11 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
         }
 
         if ("call".equals(type)) {
+            // A missing call ID cannot be safely answered or declined.
+            if (callId == null || callId.trim().isEmpty()) {
+                Log.w(TAG, "Ignoring incoming call push without callId");
+                return;
+            }
             YaaroRingtonePlayer.start(this);
             showIncomingCallNotification(title, body, callId, fromName);
         }
@@ -80,12 +85,14 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
         int notifyId = notifyIdFor(callId);
 
-        // Tap / Accept → open app
+        // Notification body tap opens app; Accept still uses the existing activity flow
+        // until a verified native audio engine can handle calls in the background.
         Intent openIntent = new Intent(this, MainActivity.class);
-        openIntent.setAction(Intent.ACTION_MAIN);
+        openIntent.setAction("com.yaaro.app.ACTION_VIEW_CALL");
         openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        openIntent.putExtra(EXTRA_FCM_ACTION, "view");
         openIntent.putExtra(EXTRA_CALL_ID, callId);
         openIntent.putExtra(EXTRA_FROM_NAME, fromName);
 
@@ -112,7 +119,7 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        // Decline → Receiver (ring stop + open app with decline)
+        // Decline → receiver only; never launch MainActivity.
         Intent declineIntent = new Intent(this, CallActionReceiver.class);
         declineIntent.setAction(ACTION_DECLINE);
         declineIntent.putExtra(EXTRA_CALL_ID, callId);
@@ -137,8 +144,7 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 .setOnlyAlertOnce(true)
                 .setContentIntent(contentPending)
                 .addAction(0, "Decline", declinePending)
-                .addAction(0, "Accept", acceptPending)
-                .setFullScreenIntent(contentPending, true);
+                .addAction(0, "Accept", acceptPending);
 
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm != null) {

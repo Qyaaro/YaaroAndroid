@@ -37,7 +37,10 @@ public class CallActionReceiver extends BroadcastReceiver {
         final Context appContext = context.getApplicationContext();
         final PendingResult pendingResult = goAsync();
 
+        // A notification action must respond immediately without opening the app.
+        // Clear the local alert even if the network request is delayed or fails.
         YaaroRingtonePlayer.stop();
+        YaaroFirebaseMessagingService.cancelCallNotification(appContext, callId);
 
         new Thread(() -> {
             try {
