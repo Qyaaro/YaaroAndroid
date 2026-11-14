@@ -137,8 +137,7 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 .setOnlyAlertOnce(true)
                 .setContentIntent(contentPending)
                 .addAction(0, "Decline", declinePending)
-                .addAction(0, "Accept", acceptPending)
-                .setFullScreenIntent(contentPending, true);
+                .addAction(0, "Accept", acceptPending);
 
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm != null) {
