@@ -110,7 +110,8 @@ protected void onNewIntent(Intent intent) {
     if (webView != null) {
         webView.evaluateJavascript(
             "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
-            "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
+            "if (typeof checkNativeDecline === 'function') checkNativeDecline();" +
+            "if (typeof checkNativeViewCall === 'function') checkNativeViewCall();",
             null
         );
     }
@@ -333,7 +334,8 @@ public void chooseRingtone() {
                 progressBar.setVisibility(View.GONE);
                 view.evaluateJavascript(
                 "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
-                "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
+                "if (typeof checkNativeDecline === 'function') checkNativeDecline();" +
+            "if (typeof checkNativeViewCall === 'function') checkNativeViewCall();",
                 null
               );
             }
