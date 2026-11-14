@@ -164,6 +164,42 @@ public void setFirebaseUid(String uid) {
         .apply();
 }
          
+// Read-only bridge for notification-body taps. The web call screen can
+// consume this once a matching incoming/active call is verified.
+@JavascriptInterface
+public String getPendingViewCallId() {
+    Intent intent = MainActivity.this.getIntent();
+    if (intent == null) return "";
+
+    String action = intent.getStringExtra(
+        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+    );
+    if (!"view".equals(action)) return "";
+
+    String callId = intent.getStringExtra(
+        YaaroFirebaseMessagingService.EXTRA_CALL_ID
+    );
+    return callId != null ? callId : "";
+}
+
+@JavascriptInterface
+public void completePendingView(String completedCallId) {
+    if (completedCallId == null || completedCallId.isEmpty()) return;
+    runOnUiThread(() -> {
+        Intent intent = getIntent();
+        if (intent == null) return;
+        String action = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+        );
+        String callId = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_CALL_ID
+        );
+        if (!"view".equals(action) || !completedCallId.equals(callId)) return;
+        intent.removeExtra(YaaroFirebaseMessagingService.EXTRA_FCM_ACTION);
+        intent.removeExtra(YaaroFirebaseMessagingService.EXTRA_CALL_ID);
+    });
+}
+
 @JavascriptInterface
 public String getPendingCallId() {
     Intent intent = MainActivity.this.getIntent();
