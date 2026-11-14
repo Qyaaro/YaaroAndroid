@@ -63,8 +63,10 @@ public final class NativeCallService extends Service {
         }
         try {
             NotificationManager manager = getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(new NotificationChannel(
-                    CHANNEL_ID, "Active voice call", NotificationManager.IMPORTANCE_LOW));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                manager.createNotificationChannel(new NotificationChannel(
+                        CHANNEL_ID, "Active voice call", NotificationManager.IMPORTANCE_LOW));
+            }
             Intent open = new Intent(this, MainActivity.class);
             open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             PendingIntent pending = PendingIntent.getActivity(this, 0, open,
