@@ -519,6 +519,15 @@ public void chooseRingtone() {
         });
     }
 
+    private boolean onlySupportedCaptureResources(String[] resources) {
+        if (resources == null || resources.length == 0) return false;
+        for (String resource : resources) {
+            if (!PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) &&
+                    !PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) return false;
+        }
+        return true;
+    }
+
     private boolean isTrustedYaaroUri(Uri uri) {
         if (uri == null || !"https".equalsIgnoreCase(uri.getScheme()) ||
                 !"qyaaro.github.io".equalsIgnoreCase(uri.getHost()) ||
@@ -569,7 +578,12 @@ public void chooseRingtone() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (pendingWebPermissionRequest != null && hasAllPermissions()) {
-                pendingWebPermissionRequest.grant(pendingWebPermissionRequest.getResources());
+                if (isTrustedYaaroUri(pendingWebPermissionRequest.getOrigin()) &&
+                        onlySupportedCaptureResources(pendingWebPermissionRequest.getResources())) {
+                    pendingWebPermissionRequest.grant(pendingWebPermissionRequest.getResources());
+                } else {
+                    pendingWebPermissionRequest.deny();
+                }
                 pendingWebPermissionRequest = null;
             } else if (pendingWebPermissionRequest != null) {
                 pendingWebPermissionRequest.deny();
