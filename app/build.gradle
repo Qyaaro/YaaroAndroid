@@ -15,22 +15,12 @@ android {
         versionName "1.0.0"
     }
 
-    signingConfigs {
-        release {
-            storeFile file("yaaro-release.jks")
-            storePassword "YaaroStore2026"
-            keyAlias "yaaro"
-            keyPassword "YaaroStore2026"
-        }
-    }
-
     buildTypes {
         debug {
             minifyEnabled false
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
