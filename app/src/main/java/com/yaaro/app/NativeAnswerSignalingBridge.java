@@ -85,10 +85,21 @@ public final class NativeAnswerSignalingBridge {
                         if (notify) listener.onConnected();
                     }
                     @Override public void onDisconnected() {
-                        if (!stopped) listener.onDisconnected();
+                        synchronized (NativeAnswerSignalingBridge.this) {
+                            if (stopped || terminalCallStatus) return;
+                            // A peer can connect before Firebase confirms the SDP
+                            // answer, then disconnect. Do not report that stale
+                            // connection when the answer write completes later.
+                            peerConnected = false;
+                        }
+                        listener.onDisconnected();
                     }
                     @Override public void onFailed() {
-                        if (!stopped) listener.onFailure("Peer connection failed");
+                        synchronized (NativeAnswerSignalingBridge.this) {
+                            if (stopped || terminalCallStatus) return;
+                            peerConnected = false;
+                        }
+                        listener.onFailure("Peer connection failed");
                     }
                 });
     }
