@@ -34,6 +34,14 @@ jobs:
           curl -fSL --retry 3 -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar
           unzip -t gradle/wrapper/gradle-wrapper.jar
           chmod +x gradlew
+      - name: Verify native call session state machine
+        run: |
+          mkdir -p /tmp/yaaro-call-smoke
+          javac -d /tmp/yaaro-call-smoke \
+            app/src/main/java/com/yaaro/app/NativeCallSession.java \
+            ci/NativeCallSessionSmokeTest.java
+          java -cp /tmp/yaaro-call-smoke com.yaaro.app.NativeCallSessionSmokeTest
+
       - name: Build debug + release APK
         run: |
           chmod +x gradlew
