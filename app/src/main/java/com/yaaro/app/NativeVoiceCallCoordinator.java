@@ -25,6 +25,37 @@ public final class NativeVoiceCallCoordinator {
         return session.incoming(callId);
     }
 
+    /**
+     * Builds an observer tied to the current call. Forward ICE only after
+     * signaling.observe(callId, listener) has established the matching call.
+     * The external listener is responsible for error handling and UI updates.
+     */
+    public synchronized NativePeerConnectionObserver createObserver(
+            String callId, String localUid,
+            NativePeerConnectionObserver.Listener listener) {
+        if (callId == null || !callId.equals(session.getCallId()) ||
+                session.getState() != NativeCallSession.State.RINGING ||
+                localUid == null || localUid.isEmpty() || listener == null) {
+            throw new IllegalStateException("Matching ringing call and listener required");
+        }
+        return new NativePeerConnectionObserver(new NativePeerConnectionObserver.Listener() {
+            @Override public void onLocalIceCandidate(IceCandidate candidate) {
+                // Local ICE may arrive before signaling is ready. The owner
+                // must publish candidates through publishLocalIce when ready.
+                listener.onLocalIceCandidate(candidate);
+            }
+            @Override public void onConnected() {
+                if (markConnected(callId)) listener.onConnected();
+            }
+            @Override public void onDisconnected() {
+                listener.onDisconnected();
+            }
+            @Override public void onFailed() {
+                listener.onFailed();
+            }
+        });
+    }
+
     public synchronized PeerConnection prepareAnswer(
             Context context, String callId,
             PeerConnection.RTCConfiguration rtcConfig,
