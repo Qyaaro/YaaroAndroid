@@ -12,6 +12,10 @@ import androidx.core.app.NotificationCompat;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.DataSnapshot;
 
 import java.util.Map;
 
@@ -73,8 +77,36 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 Log.w(TAG, "Ignoring incoming call push without callId");
                 return;
             }
-            YaaroRingtonePlayer.start(this);
-            showIncomingCallNotification(title, body, callId, fromName);
+            // Verify the call before ringing or showing actionable buttons.
+            // FCM may arrive late, after a call has ended, or for a previous account.
+            FirebaseUser receiver = FirebaseAuth.getInstance().getCurrentUser();
+            if (receiver == null || !receiver.isEmailVerified()) {
+                Log.w(TAG, "Ignoring call push without verified native receiver");
+                return;
+            }
+            final String receiverUid = receiver.getUid();
+            final String verifiedCallId = callId;
+            final String notificationTitle = title;
+            final String notificationBody = body;
+            final String callerName = fromName;
+            FirebaseDatabase.getInstance().getReference("calls").child(verifiedCallId)
+                    .get().addOnCompleteListener(task -> {
+                        if (!task.isSuccessful() || task.getResult() == null) {
+                            Log.w(TAG, "Unable to verify incoming call");
+                            return;
+                        }
+                        FirebaseUser current = FirebaseAuth.getInstance().getCurrentUser();
+                        if (current == null || !receiverUid.equals(current.getUid())) return;
+                        DataSnapshot call = task.getResult();
+                        if (!receiverUid.equals(call.child("to").getValue(String.class)) ||
+                                !"ringing".equals(call.child("status").getValue(String.class))) {
+                            Log.d(TAG, "Ignoring stale or misdirected call push");
+                            return;
+                        }
+                        YaaroRingtonePlayer.start(getApplicationContext());
+                        showIncomingCallNotification(notificationTitle, notificationBody,
+                                verifiedCallId, callerName);
+                    });
         }
     }
 
