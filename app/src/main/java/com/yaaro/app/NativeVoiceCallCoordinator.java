@@ -19,6 +19,7 @@ public final class NativeVoiceCallCoordinator {
     private final NativeWebRtcAudioEngine engine = new NativeWebRtcAudioEngine();
     private final NativeCallSignaling signaling = new NativeCallSignaling();
     private PeerConnection activePeer;
+    private Context audioContext;
 
     public synchronized boolean incoming(String callId) {
         return session.incoming(callId);
@@ -32,12 +33,18 @@ public final class NativeVoiceCallCoordinator {
             throw new IllegalStateException("Call not ringing or ID mismatch");
         }
         try {
+            // Permission alone does not authorize background microphone use.
+            // The caller must separately establish a legal foreground context.
+            NativeVoiceAudioPolicy.requireMicrophonePermission(context);
+            NativeVoiceAudioPolicy.enterCallAudioMode(context);
+            audioContext = context.getApplicationContext();
             engine.initialize(context);
             activePeer = engine.createAudioConnection(rtcConfig, observer);
             return activePeer;
         } catch (RuntimeException | Error error) {
             activePeer = null;
             engine.closeCall();
+            restoreAudio();
             session.end(callId);
             throw error;
         }
@@ -97,7 +104,16 @@ public final class NativeVoiceCallCoordinator {
         signaling.stop();
         activePeer = null;
         engine.closeCall();
+        restoreAudio();
         return true;
+    }
+
+    private void restoreAudio() {
+        if (audioContext != null) {
+            NativeVoiceAudioPolicy.clearCommunicationDevice(audioContext);
+            NativeVoiceAudioPolicy.restoreAudioMode(audioContext);
+            audioContext = null;
+        }
     }
 
     public synchronized String getDisplayStatus() {
@@ -112,6 +128,7 @@ public final class NativeVoiceCallCoordinator {
         signaling.stop();
         activePeer = null;
         engine.release();
+        restoreAudio();
         String callId = session.getCallId();
         if (callId != null) session.end(callId);
     }
