@@ -2,6 +2,10 @@ package com.yaaro.app;
 
 import android.os.Bundle;
 import android.telecom.TelecomManager;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.DataSnapshot;
 import android.telecom.Connection;
 import android.telecom.ConnectionRequest;
 import android.telecom.ConnectionService;
@@ -55,7 +59,35 @@ public final class YaaroConnectionService extends ConnectionService {
         connection.setConnectionProperties(Connection.PROPERTY_SELF_MANAGED);
         connection.setExtras(incoming);
         connection.setInitializing();
-        connection.setRinging();
+        // Telecom request extras are not proof of Firebase call ownership.
+        // Keep the connection initializing until the current native user and
+        // ringing voice call have been checked against Firebase.
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null || !user.isEmailVerified()) {
+            connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
+            connection.destroy();
+            return connection;
+        }
+        final String receiverUid = user.getUid();
+        FirebaseDatabase.getInstance().getReference("calls").child(callId)
+                .get().addOnCompleteListener(task -> {
+                    FirebaseUser current = FirebaseAuth.getInstance().getCurrentUser();
+                    if (current == null || !receiverUid.equals(current.getUid()) ||
+                            !task.isSuccessful() || task.getResult() == null) {
+                        connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
+                        connection.destroy();
+                        return;
+                    }
+                    DataSnapshot call = task.getResult();
+                    if (!receiverUid.equals(call.child("to").getValue(String.class)) ||
+                            !"voice".equals(call.child("type").getValue(String.class)) ||
+                            !"ringing".equals(call.child("status").getValue(String.class))) {
+                        connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
+                        connection.destroy();
+                        return;
+                    }
+                    connection.setRinging();
+                });
         return connection;
     }
 
