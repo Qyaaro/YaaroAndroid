@@ -32,6 +32,7 @@ public final class NativeAnswerSignalingBridge {
     private boolean stopped;
     private boolean remoteDescriptionReady;
     private boolean signalingReady;
+    private boolean terminalCallStatus;
     private final List<IceCandidate> pendingRemoteIce = new ArrayList<>();
     private final List<IceCandidate> pendingLocalIce = new ArrayList<>();
 
@@ -88,13 +89,13 @@ public final class NativeAnswerSignalingBridge {
         NativeCallSignaling.Listener signalingListener = new NativeCallSignaling.Listener() {
             @Override public void onOffer(String type, String sdp) {
                 synchronized (NativeAnswerSignalingBridge.this) {
-                    if (stopped || negotiationStarted) return;
+                    if (stopped || terminalCallStatus || negotiationStarted) return;
                     negotiationStarted = true;
                 }
                 try {
                     coordinator.negotiateAnswer(callId, sdp, new NativeAnswerNegotiator.Listener() {
                         @Override public void onLocalAnswer(SessionDescription answer) {
-                            if (stopped) return;
+                            if (stopped || terminalCallStatus) return;
                             // setLocalDescription completed, so remote offer is installed.
                             flushRemoteIce();
                             coordinator.publishAnswer(callId, answer,
@@ -116,7 +117,11 @@ public final class NativeAnswerSignalingBridge {
                 if ("ended".equals(status) || "cancelled".equals(status) ||
                         "rejected".equals(status) || "missed".equals(status) ||
                         "busy".equals(status)) {
-                    if (!stopped) listener.onEnded(status);
+                    synchronized (NativeAnswerSignalingBridge.this) {
+                        if (stopped || terminalCallStatus) return;
+                        terminalCallStatus = true;
+                    }
+                    listener.onEnded(status);
                 }
             }
             @Override public void onRemoteIceCandidate(IceCandidate candidate) {
