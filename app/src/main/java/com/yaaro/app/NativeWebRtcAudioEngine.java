@@ -81,6 +81,11 @@ public final class NativeWebRtcAudioEngine {
         }
     }
 
+    /** A signaling coordinator can query whether media resources exist. */
+    public synchronized boolean hasActiveConnection() {
+        return peerConnection != null;
+    }
+
     public synchronized void closeCall() {
         if (peerConnection != null) {
             peerConnection.close();
