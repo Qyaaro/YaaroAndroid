@@ -41,6 +41,10 @@ public final class NativeCallSignaling {
         callListener = new ValueEventListener() {
             @Override public void onDataChange(DataSnapshot snapshot) {
                 String status = snapshot.child("status").getValue(String.class);
+                if (!snapshot.exists()) {
+                    listener.onCallStatus("ended");
+                    return;
+                }
                 if (status != null) listener.onCallStatus(status);
                 String type = snapshot.child("offer").child("type").getValue(String.class);
                 String sdp = snapshot.child("offer").child("sdp").getValue(String.class);
