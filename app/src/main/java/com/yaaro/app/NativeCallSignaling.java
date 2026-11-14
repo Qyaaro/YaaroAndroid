@@ -30,7 +30,6 @@ public final class NativeCallSignaling {
     private DatabaseReference remoteCandidatesRef;
     private ChildEventListener candidatesListener;
     private String activeCallId;
-    private String expectedReceiverUid;
 
     public synchronized void observe(String callId, String receiverUid, Listener listener) {
         if (callId == null || callId.isEmpty() || receiverUid == null || receiverUid.isEmpty() || listener == null) {
@@ -38,7 +37,6 @@ public final class NativeCallSignaling {
         }
         stop();
         activeCallId = callId;
-        expectedReceiverUid = receiverUid;
         final String verifiedReceiverUid = receiverUid;
         final String observedCallId = callId;
         callRef = FirebaseDatabase.getInstance().getReference("calls").child(callId);
@@ -65,7 +63,7 @@ public final class NativeCallSignaling {
                 }
             }
             @Override public void onCancelled(DatabaseError error) {
-                listener.onError(error);
+                if (observedCallId.equals(activeCallId)) listener.onError(error);
             }
         };
         callRef.addValueEventListener(callListener);
@@ -84,7 +82,7 @@ public final class NativeCallSignaling {
                 String mid = snapshot.child("sdpMid").getValue(String.class);
                 Integer index = snapshot.child("sdpMLineIndex").getValue(Integer.class);
                 String candidate = snapshot.child("candidate").getValue(String.class);
-                if (candidate != null && index != null) {
+                if (callId.equals(activeCallId) && candidate != null && index != null) {
                     listener.onRemoteIceCandidate(new IceCandidate(mid, index, candidate));
                 }
             }
@@ -143,6 +141,5 @@ public final class NativeCallSignaling {
         callRef = null;
         callListener = null;
         activeCallId = null;
-        expectedReceiverUid = null;
     }
 }
