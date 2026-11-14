@@ -133,6 +133,13 @@ public final class NativeVoiceCallCoordinator {
         return session.connected(callId);
     }
 
+    /** Detach Firebase observers without releasing the native audio session. */
+    public synchronized void stopSignaling(String callId) {
+        if (callId != null && callId.equals(session.getCallId())) {
+            signaling.stop();
+        }
+    }
+
     public synchronized boolean end(String callId) {
         if (!session.end(callId)) return false;
         signaling.stop();
