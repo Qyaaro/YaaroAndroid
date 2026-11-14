@@ -154,21 +154,34 @@ protected void onNewIntent(Intent intent) {
    
 @JavascriptInterface
 public void signInNativeFirebase(String email, String password, String expectedUid) {
-    // Credentials are only used for a Firebase SDK sign-in; never persist or log them.
+    // Only accept credentials from the trusted QYAARO origin.
     if (!isTrustedYaaroPage() || email == null || email.isEmpty() ||
             password == null || password.isEmpty() ||
             expectedUid == null || expectedUid.isEmpty()) return;
-    FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
+    FirebaseAuth auth = FirebaseAuth.getInstance();
+    auth.signInWithEmailAndPassword(email, password)
         .addOnCompleteListener(task -> {
-            FirebaseUser nativeUser = FirebaseAuth.getInstance().getCurrentUser();
+            FirebaseUser nativeUser = auth.getCurrentUser();
             if (!task.isSuccessful() || nativeUser == null ||
                     !expectedUid.equals(nativeUser.getUid()) || !nativeUser.isEmailVerified()) {
-                FirebaseAuth.getInstance().signOut();
+                auth.signOut();
                 Log.w("YaaroNativeAuth", "Native Firebase sign-in or identity check failed");
+                notifyNativeAuthResult(expectedUid, false);
                 return;
             }
             Log.d("YaaroNativeAuth", "Native Firebase session established");
+            notifyNativeAuthResult(expectedUid, true);
         });
+}
+
+private void notifyNativeAuthResult(String expectedUid, boolean success) {
+    runOnUiThread(() -> {
+        if (webView == null || !isTrustedYaaroPage()) return;
+        String uid = org.json.JSONObject.quote(expectedUid);
+        webView.evaluateJavascript(
+            "if (typeof window.onYaaroNativeAuthResult === 'function') " +
+            "window.onYaaroNativeAuthResult(" + uid + "," + success + ");", null);
+    });
 }
 
 @JavascriptInterface
