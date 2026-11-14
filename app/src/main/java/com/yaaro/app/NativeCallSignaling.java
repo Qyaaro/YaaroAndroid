@@ -30,22 +30,31 @@ public final class NativeCallSignaling {
     private DatabaseReference remoteCandidatesRef;
     private ChildEventListener candidatesListener;
     private String activeCallId;
+    private String expectedReceiverUid;
 
-    public synchronized void observe(String callId, Listener listener) {
-        if (callId == null || callId.isEmpty() || listener == null) {
+    public synchronized void observe(String callId, String receiverUid, Listener listener) {
+        if (callId == null || callId.isEmpty() || receiverUid == null || receiverUid.isEmpty() || listener == null) {
             throw new IllegalArgumentException("Call ID and listener required");
         }
         stop();
         activeCallId = callId;
+        expectedReceiverUid = receiverUid;
         callRef = FirebaseDatabase.getInstance().getReference("calls").child(callId);
         callListener = new ValueEventListener() {
             @Override public void onDataChange(DataSnapshot snapshot) {
+                String receiver = snapshot.child("to").getValue(String.class);
+                String callType = snapshot.child("type").getValue(String.class);
+                if (!expectedReceiverUid.equals(receiver) || !"voice".equals(callType)) {
+                    listener.onCallStatus("ended");
+                    return;
+                }
                 String status = snapshot.child("status").getValue(String.class);
                 if (!snapshot.exists()) {
                     listener.onCallStatus("ended");
                     return;
                 }
                 if (status != null) listener.onCallStatus(status);
+                if (!"ringing".equals(status) && !"accepted".equals(status) && !"connected".equals(status)) return;
                 String type = snapshot.child("offer").child("type").getValue(String.class);
                 String sdp = snapshot.child("offer").child("sdp").getValue(String.class);
                 if ("offer".equals(type) && sdp != null && !sdp.isEmpty()) {
@@ -131,5 +140,6 @@ public final class NativeCallSignaling {
         callRef = null;
         callListener = null;
         activeCallId = null;
+        expectedReceiverUid = null;
     }
 }
