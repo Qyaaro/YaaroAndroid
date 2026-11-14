@@ -27,7 +27,7 @@ public final class NativeVoiceCallCoordinator {
 
     /**
      * Builds an observer tied to the current call. Forward ICE only after
-     * signaling.observe(callId, listener) has established the matching call.
+     * signaling.observe(callId, localUid, listener) has established the matching call.
      * The external listener is responsible for error handling and UI updates.
      */
     public synchronized NativePeerConnectionObserver createObserver(
@@ -96,7 +96,7 @@ public final class NativeVoiceCallCoordinator {
         NativeAnswerNegotiator.answer(activePeer, offerSdp, listener);
     }
 
-    public synchronized void observeSignaling(String callId, NativeCallSignaling.Listener listener) {
+    public synchronized void observeSignaling(String callId, String localUid, NativeCallSignaling.Listener listener) {
         if (callId == null || !callId.equals(session.getCallId())) {
             throw new IllegalStateException("Call ID mismatch");
         }
