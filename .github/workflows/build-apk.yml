@@ -44,19 +44,13 @@ jobs:
             ci/NativeCallSessionSmokeTest.java
           java -cp /tmp/yaaro-call-smoke com.yaaro.app.NativeCallSessionSmokeTest
 
-      - name: Build debug + release APK
+      - name: Build debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: Yaaro-app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Yaaro-app-release
-          path: app/build/outputs/apk/release/app-release.apk
