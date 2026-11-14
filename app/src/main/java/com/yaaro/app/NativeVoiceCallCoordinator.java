@@ -45,7 +45,8 @@ public final class NativeVoiceCallCoordinator {
                 listener.onLocalIceCandidate(candidate);
             }
             @Override public void onConnected() {
-                if (markConnected(callId)) listener.onConnected();
+                // Bridge must confirm Firebase SDP publication before advancing state.
+                listener.onConnected();
             }
             @Override public void onDisconnected() {
                 listener.onDisconnected();
