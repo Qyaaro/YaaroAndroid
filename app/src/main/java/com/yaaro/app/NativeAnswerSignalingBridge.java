@@ -144,7 +144,7 @@ public final class NativeAnswerSignalingBridge {
                 if (!stopped) listener.onFailure("Signaling: " + error.getMessage());
             }
         };
-        coordinator.observeSignaling(callId, signalingListener);
+        coordinator.observeSignaling(callId, localUid, signalingListener);
         coordinator.observeRemoteIce(callId, remoteUid, signalingListener);
         List<IceCandidate> buffered;
         synchronized (this) {
