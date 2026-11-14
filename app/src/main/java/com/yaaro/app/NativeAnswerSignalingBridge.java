@@ -82,7 +82,7 @@ public final class NativeAnswerSignalingBridge {
                             notify = answerPublished && !connectionReported;
                             if (notify) connectionReported = true;
                         }
-                        if (notify) listener.onConnected();
+                        if (notify && coordinator.markConnected(callId)) listener.onConnected();
                     }
                     @Override public void onDisconnected() {
                         synchronized (NativeAnswerSignalingBridge.this) {
@@ -135,7 +135,7 @@ public final class NativeAnswerSignalingBridge {
                                                         peerConnected && !connectionReported;
                                                 if (notifyConnected) connectionReported = true;
                                             }
-                                            if (notifyConnected) listener.onConnected();
+                                            if (notifyConnected && coordinator.markConnected(callId)) listener.onConnected();
                                         }
                                     });
                         }
