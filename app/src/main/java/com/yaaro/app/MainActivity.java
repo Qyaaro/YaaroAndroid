@@ -453,8 +453,23 @@ public void chooseRingtone() {
                         request.deny();
                         return;
                     }
+                    // Grant only the camera/microphone resources the app supports.
+                    java.util.List<String> allowed = new java.util.ArrayList<>();
+                    for (String resource : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) ||
+                                PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
+                            allowed.add(resource);
+                        } else {
+                            request.deny();
+                            return;
+                        }
+                    }
+                    if (allowed.isEmpty()) {
+                        request.deny();
+                        return;
+                    }
                     if (hasAllPermissions()) {
-                        request.grant(request.getResources());
+                        request.grant(allowed.toArray(new String[0]));
                     } else {
                         pendingWebPermissionRequest = request;
                         requestAndroidPermissions();
@@ -465,6 +480,10 @@ public void chooseRingtone() {
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback,
                                              FileChooserParams fileChooserParams) {
+                if (!isTrustedYaaroPage()) {
+                    filePathCallback.onReceiveValue(null);
+                    return false;
+                }
                 if (MainActivity.this.filePathCallback != null) {
                     MainActivity.this.filePathCallback.onReceiveValue(null);
                 }
