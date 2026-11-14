@@ -60,13 +60,31 @@ public class CallActionReceiver extends BroadcastReceiver {
                             String to = call.child("to").getValue(String.class);
                             String type = call.child("type").getValue(String.class);
                             String status = call.child("status").getValue(String.class);
+                            String callerUid = call.child("from").getValue(String.class);
+                            String offerType = call.child("offer").child("type").getValue(String.class);
+                            String offerSdp = call.child("offer").child("sdp").getValue(String.class);
                             if (!receiverUid.equals(to) || !"voice".equals(type) ||
-                                    !"ringing".equals(status)) {
+                                    !"ringing".equals(status) ||
+                                    callerUid == null || callerUid.trim().isEmpty() ||
+                                    receiverUid.equals(callerUid)) {
                                 Log.w("YaaroAccept", "Not an eligible ringing voice call");
                                 return;
                             }
+                            // A native WebRTC answer requires a genuine caller SDP offer.
+                            // Do not claim success or attempt microphone capture if absent.
+                            if (!"offer".equals(offerType) || offerSdp == null ||
+                                    offerSdp.trim().isEmpty()) {
+                                Log.w("YaaroAccept", "Caller WebRTC offer not ready");
+                                return;
+                            }
+                            if (!NativeVoiceAudioPolicy.hasMicrophonePermission(
+                                    context.getApplicationContext())) {
+                                Log.w("YaaroAccept", "RECORD_AUDIO permission not granted");
+                                return;
+                            }
                             Log.i("YaaroAccept",
-                                    "Receiver/call verified; native audio answer still unavailable");
+                                    "Verified receiver, ringing call, caller offer and microphone permission; " +
+                                    "background audio service integration pending");
                         } finally {
                             acceptResult.finish();
                         }
