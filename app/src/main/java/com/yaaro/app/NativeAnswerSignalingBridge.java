@@ -211,7 +211,12 @@ public final class NativeAnswerSignalingBridge {
     }
 
     public synchronized void stop() {
+        if (stopped) return;
         stopped = true;
+        // Detach Firebase observers even if the bridge is stopped before a
+        // terminal call status. Otherwise a failed/abandoned answer can leave
+        // live listeners running and receive ICE for an obsolete call.
+        coordinator.stopSignaling(callId);
         pendingRemoteIce.clear();
         pendingLocalIce.clear();
     }
