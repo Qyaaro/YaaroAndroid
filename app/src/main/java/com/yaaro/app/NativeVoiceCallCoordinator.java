@@ -100,7 +100,7 @@ public final class NativeVoiceCallCoordinator {
         if (callId == null || !callId.equals(session.getCallId())) {
             throw new IllegalStateException("Call ID mismatch");
         }
-        signaling.observe(callId, listener);
+        signaling.observe(callId, localUid, listener);
     }
 
     public synchronized void observeRemoteIce(String callId, String remoteUid,
