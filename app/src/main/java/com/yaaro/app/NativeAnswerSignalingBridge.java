@@ -4,6 +4,8 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import org.webrtc.IceCandidate;
 import org.webrtc.SessionDescription;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Bridges Firebase call signaling to an already-prepared native peer.
@@ -27,6 +29,8 @@ public final class NativeAnswerSignalingBridge {
     private final Listener listener;
     private boolean negotiationStarted;
     private boolean stopped;
+    private boolean remoteDescriptionReady;
+    private final List<IceCandidate> pendingRemoteIce = new ArrayList<>();
 
     public NativeAnswerSignalingBridge(NativeVoiceCallCoordinator coordinator,
             String callId, String localUid, String remoteUid, Listener listener) {
@@ -78,6 +82,8 @@ public final class NativeAnswerSignalingBridge {
                     coordinator.negotiateAnswer(callId, sdp, new NativeAnswerNegotiator.Listener() {
                         @Override public void onLocalAnswer(SessionDescription answer) {
                             if (stopped) return;
+                            // setLocalDescription completed, so remote offer is installed.
+                            flushRemoteIce();
                             coordinator.publishAnswer(callId, answer,
                                     (DatabaseError error, DatabaseReference ref) -> {
                                         if (stopped) return;
@@ -101,9 +107,14 @@ public final class NativeAnswerSignalingBridge {
                 }
             }
             @Override public void onRemoteIceCandidate(IceCandidate candidate) {
-                if (!stopped && !coordinator.addRemoteIce(callId, candidate)) {
-                    listener.onFailure("Remote ICE could not be applied");
+                synchronized (NativeAnswerSignalingBridge.this) {
+                    if (stopped) return;
+                    if (!remoteDescriptionReady) {
+                        pendingRemoteIce.add(candidate);
+                        return;
+                    }
                 }
+                applyRemoteIce(candidate);
             }
             @Override public void onError(DatabaseError error) {
                 if (!stopped) listener.onFailure("Signaling: " + error.getMessage());
@@ -113,7 +124,32 @@ public final class NativeAnswerSignalingBridge {
         coordinator.observeRemoteIce(callId, remoteUid, signalingListener);
     }
 
+    private void applyRemoteIce(IceCandidate candidate) {
+        try {
+            if (!coordinator.addRemoteIce(callId, candidate)) {
+                listener.onFailure("Remote ICE could not be applied");
+            }
+        } catch (RuntimeException error) {
+            listener.onFailure("Remote ICE: " + error.getMessage());
+        }
+    }
+
+    private void flushRemoteIce() {
+        List<IceCandidate> buffered;
+        synchronized (this) {
+            if (stopped) return;
+            remoteDescriptionReady = true;
+            buffered = new ArrayList<>(pendingRemoteIce);
+            pendingRemoteIce.clear();
+        }
+        for (IceCandidate candidate : buffered) {
+            if (stopped) break;
+            applyRemoteIce(candidate);
+        }
+    }
+
     public synchronized void stop() {
         stopped = true;
+        pendingRemoteIce.clear();
     }
 }
