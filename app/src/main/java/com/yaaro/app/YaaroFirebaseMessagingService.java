@@ -85,8 +85,8 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
         int notifyId = notifyIdFor(callId);
 
-        // Notification body tap opens app; Accept still uses the existing activity flow
-        // until a verified native audio engine can handle calls in the background.
+        // Only the notification body may launch the call screen.
+        // Accept/Decline actions must never launch MainActivity.
         Intent openIntent = new Intent(this, MainActivity.class);
         openIntent.setAction("com.yaaro.app.ACTION_VIEW_CALL");
         openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
@@ -103,16 +103,13 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        Intent acceptIntent = new Intent(this, MainActivity.class);
+        Intent acceptIntent = new Intent(this, CallActionReceiver.class);
         acceptIntent.setAction(ACTION_ACCEPT);
-        acceptIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         acceptIntent.putExtra(EXTRA_FCM_ACTION, "accept");
         acceptIntent.putExtra(EXTRA_CALL_ID, callId);
         acceptIntent.putExtra(EXTRA_FROM_NAME, fromName);
 
-        PendingIntent acceptPending = PendingIntent.getActivity(
+        PendingIntent acceptPending = PendingIntent.getBroadcast(
                 this,
                 notifyId + 1,
                 acceptIntent,
