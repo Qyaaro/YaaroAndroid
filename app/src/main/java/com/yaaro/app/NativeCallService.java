@@ -82,9 +82,16 @@ public final class NativeCallService extends Service {
                 manager.createNotificationChannel(new NotificationChannel(
                         CHANNEL_ID, "Active voice call", NotificationManager.IMPORTANCE_LOW));
             }
+            // Only tapping the ongoing notification opens the call screen.
+            // Starting or accepting a call must not launch MainActivity.
             Intent open = new Intent(this, MainActivity.class);
-            open.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            PendingIntent pending = PendingIntent.getActivity(this, 0, open,
+            open.setAction("com.yaaro.app.ACTION_VIEW_CALL");
+            open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            open.putExtra(YaaroFirebaseMessagingService.EXTRA_FCM_ACTION, "view");
+            open.putExtra(YaaroFirebaseMessagingService.EXTRA_CALL_ID, callId);
+            PendingIntent pending = PendingIntent.getActivity(this,
+                    YaaroFirebaseMessagingService.notifyIdFor(callId), open,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                     .setSmallIcon(R.mipmap.ic_launcher)
