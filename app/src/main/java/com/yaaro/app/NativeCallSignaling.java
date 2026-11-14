@@ -39,20 +39,23 @@ public final class NativeCallSignaling {
         stop();
         activeCallId = callId;
         expectedReceiverUid = receiverUid;
+        final String verifiedReceiverUid = receiverUid;
+        final String observedCallId = callId;
         callRef = FirebaseDatabase.getInstance().getReference("calls").child(callId);
         callListener = new ValueEventListener() {
             @Override public void onDataChange(DataSnapshot snapshot) {
                 String receiver = snapshot.child("to").getValue(String.class);
                 String callType = snapshot.child("type").getValue(String.class);
-                if (!expectedReceiverUid.equals(receiver) || !"voice".equals(callType)) {
-                    listener.onCallStatus("ended");
-                    return;
-                }
-                String status = snapshot.child("status").getValue(String.class);
+                if (!observedCallId.equals(activeCallId)) return;
                 if (!snapshot.exists()) {
                     listener.onCallStatus("ended");
                     return;
                 }
+                if (!verifiedReceiverUid.equals(receiver) || !"voice".equals(callType)) {
+                    listener.onCallStatus("ended");
+                    return;
+                }
+                String status = snapshot.child("status").getValue(String.class);
                 if (status != null) listener.onCallStatus(status);
                 if (!"ringing".equals(status) && !"accepted".equals(status) && !"connected".equals(status)) return;
                 String type = snapshot.child("offer").child("type").getValue(String.class);
