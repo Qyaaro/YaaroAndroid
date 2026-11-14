@@ -34,6 +34,8 @@ public final class NativeAnswerSignalingBridge {
     private boolean signalingReady;
     private boolean terminalCallStatus;
     private boolean answerPublished;
+    private boolean peerConnected;
+    private boolean connectionReported;
     private final List<IceCandidate> pendingRemoteIce = new ArrayList<>();
     private final List<IceCandidate> pendingLocalIce = new ArrayList<>();
 
@@ -73,7 +75,14 @@ public final class NativeAnswerSignalingBridge {
                         }
                     }
                     @Override public void onConnected() {
-                        if (!stopped) listener.onConnected();
+                        boolean notify;
+                        synchronized (NativeAnswerSignalingBridge.this) {
+                            if (stopped || terminalCallStatus) return;
+                            peerConnected = true;
+                            notify = answerPublished && !connectionReported;
+                            if (notify) connectionReported = true;
+                        }
+                        if (notify) listener.onConnected();
                     }
                     @Override public void onDisconnected() {
                         if (!stopped) listener.onDisconnected();
@@ -109,6 +118,13 @@ public final class NativeAnswerSignalingBridge {
                                                 answerPublished = true;
                                             }
                                             listener.onAnswerPublished();
+                                            boolean notifyConnected;
+                                            synchronized (NativeAnswerSignalingBridge.this) {
+                                                notifyConnected = !stopped && !terminalCallStatus &&
+                                                        peerConnected && !connectionReported;
+                                                if (notifyConnected) connectionReported = true;
+                                            }
+                                            if (notifyConnected) listener.onConnected();
                                         }
                                     });
                         }
