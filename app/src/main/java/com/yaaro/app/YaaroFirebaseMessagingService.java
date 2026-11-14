@@ -16,12 +16,17 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.DataSnapshot;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import java.util.Map;
 
 public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "YaaroFCM";
+    // Invalidates pending asynchronous verification when a cancellation arrives.
+    private static final ConcurrentHashMap<String, Long> CALL_GENERATIONS = new ConcurrentHashMap<>();
+    private static final AtomicLong NEXT_GENERATION = new AtomicLong();
     public static final String CHANNEL_ID = "yaaro_calls_v3";
 
     public static final String ACTION_ACCEPT = "com.yaaro.app.ACTION_ACCEPT_CALL";
@@ -66,6 +71,9 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
         }
 
         if ("call_cancel".equals(type)) {
+            if (callId != null && !callId.isEmpty()) {
+                CALL_GENERATIONS.put(callId, NEXT_GENERATION.incrementAndGet());
+            }
             YaaroRingtonePlayer.stop();
             cancelCallNotification(this, callId);
             return;
@@ -84,6 +92,8 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 Log.w(TAG, "Ignoring call push without verified native receiver");
                 return;
             }
+            final long generation = NEXT_GENERATION.incrementAndGet();
+            CALL_GENERATIONS.put(callId, generation);
             final String receiverUid = receiver.getUid();
             final String verifiedCallId = callId;
             final String notificationTitle = title;
@@ -95,10 +105,15 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                             Log.w(TAG, "Unable to verify incoming call");
                             return;
                         }
+                        if (!Long.valueOf(generation).equals(CALL_GENERATIONS.get(verifiedCallId))) {
+                            Log.d(TAG, "Incoming verification superseded or cancelled");
+                            return;
+                        }
                         FirebaseUser current = FirebaseAuth.getInstance().getCurrentUser();
                         if (current == null || !receiverUid.equals(current.getUid())) return;
                         DataSnapshot call = task.getResult();
                         if (!receiverUid.equals(call.child("to").getValue(String.class)) ||
+                                !"voice".equals(call.child("type").getValue(String.class)) ||
                                 !"ringing".equals(call.child("status").getValue(String.class))) {
                             Log.d(TAG, "Ignoring stale or misdirected call push");
                             return;
