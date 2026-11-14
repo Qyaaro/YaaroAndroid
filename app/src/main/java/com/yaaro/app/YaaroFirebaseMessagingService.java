@@ -118,6 +118,13 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                             Log.d(TAG, "Ignoring stale or misdirected call push");
                             return;
                         }
+                        // The Firebase receiver, call type and ringing state have
+                        // been verified. Register the incoming call with Telecom
+                        // before presenting QYAARO's existing notification.
+                        // Telecom integration is not yet an audio answer path.
+                        boolean telecomReported = YaaroTelecomAccount.reportVerifiedIncomingCall(
+                                getApplicationContext(), verifiedCallId);
+                        Log.i(TAG, "Telecom incoming call reported: " + telecomReported);
                         YaaroRingtonePlayer.start(getApplicationContext());
                         showIncomingCallNotification(notificationTitle, notificationBody,
                                 verifiedCallId, callerName);
