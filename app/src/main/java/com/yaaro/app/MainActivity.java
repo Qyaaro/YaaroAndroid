@@ -103,6 +103,10 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
         webView = findViewById(R.id.webview);
         progressBar = findViewById(R.id.progress);
 
+        // Register the Telecom account while the app is visible; this does not
+        // initiate a call, request microphone access, or open another screen.
+        YaaroTelecomAccount.register(getApplicationContext());
+
         fetchAndStoreFcmToken();
         setupWebView();
         ensurePermissionsThenLoad();
