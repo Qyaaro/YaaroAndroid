@@ -223,6 +223,12 @@ private void notifyNativeDatabaseResult(String expectedUid, boolean success) {
 public void signOutNativeFirebase() {
     if (!isTrustedYaaroPage()) return;
     FirebaseAuth.getInstance().signOut();
+    // Prevent a later notification action from reusing the previous user's
+    // cached credentials after logout or account switching.
+    getSharedPreferences("yaaro", MODE_PRIVATE).edit()
+        .remove("firebase_id_token")
+        .remove("firebase_uid")
+        .apply();
 }
 
 @JavascriptInterface
