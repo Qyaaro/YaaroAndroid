@@ -17,6 +17,8 @@ import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import java.io.IOException;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -391,6 +393,27 @@ public void chooseRingtone() {
         }, "YaaroAndroid");
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                // Feature-branch test APK only: serve the reviewed web feature HTML
+                // at the existing trusted HTTPS origin. Never intercept Firebase APIs.
+                Uri uri = request.getUrl();
+                if (request.isForMainFrame() && "GET".equalsIgnoreCase(request.getMethod()) &&
+                        YAARO_URL.equals(uri.toString())) {
+                    try {
+                        WebResourceResponse response = new WebResourceResponse(
+                            "text/html", "UTF-8",
+                            getAssets().open("qa_auth_preview.html"));
+                        response.setResponseHeaders(java.util.Collections.singletonMap(
+                            "Cache-Control", "no-store"));
+                        return response;
+                    } catch (IOException e) {
+                        Log.e("YaaroAuthPreview", "Bundled web preview unavailable", e);
+                    }
+                }
+                return super.shouldInterceptRequest(view, request);
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if ("https".equals(request.getUrl().getScheme())) {
