@@ -80,7 +80,8 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
         int notifyId = notifyIdFor(callId);
 
-        // Notification body tap opens app; action buttons use separate intents
+        // Notification body tap opens app; Accept still uses the existing activity flow
+        // until a verified native audio engine can handle calls in the background.
         Intent openIntent = new Intent(this, MainActivity.class);
         openIntent.setAction("com.yaaro.app.ACTION_VIEW_CALL");
         openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
