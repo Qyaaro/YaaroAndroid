@@ -3,6 +3,8 @@ name: Build Yaaro APK
 on:
   push:
     branches: [ main, master, feature/native-background-call-answer ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
