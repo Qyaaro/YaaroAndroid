@@ -192,6 +192,32 @@ public boolean isNativeFirebaseSignedIn(String expectedUid) {
 }
 
 @JavascriptInterface
+public void verifyNativeFirebaseDatabase(String expectedUid) {
+    if (!isTrustedYaaroPage() || expectedUid == null || expectedUid.isEmpty()) return;
+    FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+    if (user == null || !expectedUid.equals(user.getUid()) || !user.isEmailVerified()) {
+        notifyNativeDatabaseResult(expectedUid, false);
+        return;
+    }
+    // Read only the signed-in user's profile; Firebase Database rules decide access.
+    com.google.firebase.database.FirebaseDatabase.getInstance()
+        .getReference("users").child(user.getUid()).get()
+        .addOnCompleteListener(task ->
+            notifyNativeDatabaseResult(expectedUid, task.isSuccessful() &&
+                task.getResult() != null && task.getResult().exists()));
+}
+
+private void notifyNativeDatabaseResult(String expectedUid, boolean success) {
+    runOnUiThread(() -> {
+        if (webView == null || !isTrustedYaaroPage()) return;
+        webView.evaluateJavascript(
+            "if (typeof window.onYaaroNativeDatabaseResult === 'function') " +
+            "window.onYaaroNativeDatabaseResult(" +
+            org.json.JSONObject.quote(expectedUid) + "," + success + ");", null);
+    });
+}
+
+@JavascriptInterface
 public void signOutNativeFirebase() {
     if (!isTrustedYaaroPage()) return;
     FirebaseAuth.getInstance().signOut();
