@@ -33,6 +33,7 @@ public final class NativeAnswerSignalingBridge {
     private boolean remoteDescriptionReady;
     private boolean signalingReady;
     private boolean terminalCallStatus;
+    private boolean answerPublished;
     private final List<IceCandidate> pendingRemoteIce = new ArrayList<>();
     private final List<IceCandidate> pendingLocalIce = new ArrayList<>();
 
@@ -102,7 +103,13 @@ public final class NativeAnswerSignalingBridge {
                                     (DatabaseError error, DatabaseReference ref) -> {
                                         if (stopped || terminalCallStatus) return;
                                         if (error != null) listener.onFailure("Answer write: " + error.getMessage());
-                                        else listener.onAnswerPublished();
+                                        else {
+                                            synchronized (NativeAnswerSignalingBridge.this) {
+                                                if (stopped || terminalCallStatus) return;
+                                                answerPublished = true;
+                                            }
+                                            listener.onAnswerPublished();
+                                        }
                                     });
                         }
                         @Override public void onFailure(String reason) {
@@ -181,6 +188,10 @@ public final class NativeAnswerSignalingBridge {
             if (stopped) break;
             applyRemoteIce(candidate);
         }
+    }
+
+    public synchronized boolean isAnswerPublished() {
+        return answerPublished && !stopped && !terminalCallStatus;
     }
 
     public synchronized void stop() {
