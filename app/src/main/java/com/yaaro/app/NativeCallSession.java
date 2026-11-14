@@ -36,6 +36,25 @@ public final class NativeCallSession {
         return true;
     }
 
+    /**
+     * Public call status for future UI rendering.
+     * CONNECTING remains internal: keep the ringing display until media
+     * is actually connected. Never label an unconnected call CONNECTED.
+     */
+    public synchronized String getDisplayStatus() {
+        switch (state) {
+            case RINGING:
+            case CONNECTING:
+                return "Ringing";
+            case CONNECTED:
+                return "Connected";
+            case ENDED:
+                return "Ended";
+            default:
+                return "";
+        }
+    }
+
     public synchronized State getState() { return state; }
     public synchronized String getCallId() { return callId; }
 
