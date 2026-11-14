@@ -126,7 +126,10 @@ public final class NativeVoiceCallCoordinator {
 
     /** Call only when WebRTC confirms a connected peer, not merely on answer SDP. */
     public synchronized boolean markConnected(String callId) {
-        if (!engine.hasActiveConnection()) return false;
+        if (activePeer == null || !engine.hasActiveConnection() ||
+                activePeer.connectionState() != PeerConnection.PeerConnectionState.CONNECTED) {
+            return false;
+        }
         return session.connected(callId);
     }
 
