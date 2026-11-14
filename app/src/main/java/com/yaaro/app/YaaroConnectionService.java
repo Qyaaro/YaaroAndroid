@@ -12,6 +12,7 @@ import android.telecom.ConnectionService;
 import android.telecom.DisconnectCause;
 import android.telecom.PhoneAccountHandle;
 import android.util.Log;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Telecom entry point for future self-managed voice calls.
@@ -41,17 +42,21 @@ public final class YaaroConnectionService extends ConnectionService {
             return null;
         }
         Log.i(TAG, "Incoming Telecom connection created; WebRTC audio pending");
+        final AtomicBoolean closed = new AtomicBoolean(false);
         Connection connection = new Connection() {
             @Override public void onAnswer() {
                 // Never claim an active call without an authorized WebRTC session.
+                closed.set(true);
                 setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
                 destroy();
             }
             @Override public void onReject() {
+                closed.set(true);
                 setDisconnected(new DisconnectCause(DisconnectCause.REJECTED));
                 destroy();
             }
             @Override public void onDisconnect() {
+                closed.set(true);
                 setDisconnected(new DisconnectCause(DisconnectCause.LOCAL));
                 destroy();
             }
@@ -64,6 +69,7 @@ public final class YaaroConnectionService extends ConnectionService {
         // ringing voice call have been checked against Firebase.
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null || !user.isEmailVerified()) {
+            closed.set(true);
             connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
             connection.destroy();
             return connection;
@@ -71,9 +77,13 @@ public final class YaaroConnectionService extends ConnectionService {
         final String receiverUid = user.getUid();
         FirebaseDatabase.getInstance().getReference("calls").child(callId)
                 .get().addOnCompleteListener(task -> {
+                    // An asynchronous Firebase response must never resurrect a
+                    // connection already rejected, answered, or disconnected.
+                    if (closed.get()) return;
                     FirebaseUser current = FirebaseAuth.getInstance().getCurrentUser();
                     if (current == null || !receiverUid.equals(current.getUid()) ||
                             !task.isSuccessful() || task.getResult() == null) {
+                        closed.set(true);
                         connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
                         connection.destroy();
                         return;
@@ -86,7 +96,7 @@ public final class YaaroConnectionService extends ConnectionService {
                         connection.destroy();
                         return;
                     }
-                    connection.setRinging();
+                    if (!closed.get()) connection.setRinging();
                 });
         return connection;
     }
