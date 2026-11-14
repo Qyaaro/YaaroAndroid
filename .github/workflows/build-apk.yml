@@ -2,7 +2,7 @@ name: Build Yaaro APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, feature/native-background-call-answer ]
   workflow_dispatch:
 
 jobs:
