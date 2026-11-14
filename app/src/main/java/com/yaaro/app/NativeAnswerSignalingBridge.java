@@ -100,7 +100,7 @@ public final class NativeAnswerSignalingBridge {
                             flushRemoteIce();
                             coordinator.publishAnswer(callId, answer,
                                     (DatabaseError error, DatabaseReference ref) -> {
-                                        if (stopped) return;
+                                        if (stopped || terminalCallStatus) return;
                                         if (error != null) listener.onFailure("Answer write: " + error.getMessage());
                                         else listener.onAnswerPublished();
                                     });
@@ -121,12 +121,14 @@ public final class NativeAnswerSignalingBridge {
                         if (stopped || terminalCallStatus) return;
                         terminalCallStatus = true;
                     }
+                    stop();
+                    coordinator.end(callId);
                     listener.onEnded(status);
                 }
             }
             @Override public void onRemoteIceCandidate(IceCandidate candidate) {
                 synchronized (NativeAnswerSignalingBridge.this) {
-                    if (stopped) return;
+                    if (stopped || terminalCallStatus) return;
                     if (!remoteDescriptionReady) {
                         if (pendingRemoteIce.size() >= MAX_BUFFERED_ICE) {
                             listener.onFailure("Remote ICE buffer limit exceeded");
@@ -170,7 +172,7 @@ public final class NativeAnswerSignalingBridge {
     private void flushRemoteIce() {
         List<IceCandidate> buffered;
         synchronized (this) {
-            if (stopped) return;
+            if (stopped || terminalCallStatus) return;
             remoteDescriptionReady = true;
             buffered = new ArrayList<>(pendingRemoteIce);
             pendingRemoteIce.clear();
