@@ -142,15 +142,15 @@ protected void onNewIntent(Intent intent) {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         webView.addJavascriptInterface(new Object() {
    
@@ -416,10 +416,10 @@ public void chooseRingtone() {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if ("https".equals(request.getUrl().getScheme())) {
-                    return false;
-                }
-                return true;
+                if (!request.isForMainFrame()) return false;
+                Uri target = request.getUrl();
+                // Do not navigate the privileged bridge to third-party pages.
+                return !isTrustedYaaroUri(target);
             }
 
             @Override
@@ -443,6 +443,11 @@ public void chooseRingtone() {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> {
+                    Uri origin = request.getOrigin();
+                    if (!isTrustedYaaroUri(origin)) {
+                        request.deny();
+                        return;
+                    }
                     if (hasAllPermissions()) {
                         request.grant(request.getResources());
                     } else {
@@ -484,12 +489,19 @@ public void chooseRingtone() {
         });
     }
 
+    private boolean isTrustedYaaroUri(Uri uri) {
+        if (uri == null || !"https".equalsIgnoreCase(uri.getScheme()) ||
+                !"qyaaro.github.io".equalsIgnoreCase(uri.getHost()) ||
+                uri.getPort() != -1) return false;
+        String path = uri.getPath();
+        return "/yaaro-web/".equals(path) || "/yaaro-web/index.html".equals(path);
+    }
+
     private boolean isTrustedYaaroPage() {
         if (webView == null) return false;
-        String url = webView.getUrl();
-        return url != null && (url.equals(YAARO_URL) ||
-                url.startsWith(YAARO_URL + "?") || url.startsWith(YAARO_URL + "#") ||
-                url.startsWith(YAARO_URL + "index.html"));
+        // WebView's current URL is not proof of the calling iframe's origin.
+        // Keep this check as defense-in-depth, not as frame authentication.
+        return isTrustedYaaroUri(Uri.parse(webView.getUrl() == null ? "" : webView.getUrl()));
     }
 
     private void ensurePermissionsThenLoad() {
