@@ -30,6 +30,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -149,6 +152,38 @@ protected void onNewIntent(Intent intent) {
 
         webView.addJavascriptInterface(new Object() {
    
+@JavascriptInterface
+public void signInNativeFirebase(String email, String password, String expectedUid) {
+    // Credentials are only used for a Firebase SDK sign-in; never persist or log them.
+    if (!isTrustedYaaroPage() || email == null || email.isEmpty() ||
+            password == null || password.isEmpty() ||
+            expectedUid == null || expectedUid.isEmpty()) return;
+    FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
+        .addOnCompleteListener(task -> {
+            FirebaseUser nativeUser = FirebaseAuth.getInstance().getCurrentUser();
+            if (!task.isSuccessful() || nativeUser == null ||
+                    !expectedUid.equals(nativeUser.getUid()) || !nativeUser.isEmailVerified()) {
+                FirebaseAuth.getInstance().signOut();
+                Log.w("YaaroNativeAuth", "Native Firebase sign-in or identity check failed");
+                return;
+            }
+            Log.d("YaaroNativeAuth", "Native Firebase session established");
+        });
+}
+
+@JavascriptInterface
+public boolean isNativeFirebaseSignedIn(String expectedUid) {
+    if (!isTrustedYaaroPage() || expectedUid == null) return false;
+    FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+    return user != null && expectedUid.equals(user.getUid()) && user.isEmailVerified();
+}
+
+@JavascriptInterface
+public void signOutNativeFirebase() {
+    if (!isTrustedYaaroPage()) return;
+    FirebaseAuth.getInstance().signOut();
+}
+
 @JavascriptInterface
 public void setFirebaseIdToken(String token) {
     getSharedPreferences("yaaro", MODE_PRIVATE)
@@ -385,6 +420,14 @@ public void chooseRingtone() {
                 }
             }
         });
+    }
+
+    private boolean isTrustedYaaroPage() {
+        if (webView == null) return false;
+        String url = webView.getUrl();
+        return url != null && (url.equals(YAARO_URL) ||
+                url.startsWith(YAARO_URL + "?") || url.startsWith(YAARO_URL + "#") ||
+                url.startsWith(YAARO_URL + "index.html"));
     }
 
     private void ensurePermissionsThenLoad() {
