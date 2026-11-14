@@ -246,6 +246,7 @@ public void completePendingAccept(String completedCallId) {
         );
 
         YaaroRingtonePlayer.stop();
+        YaaroFirebaseMessagingService.cancelCallNotification(MainActivity.this, completedCallId);
     });
 }
             
