@@ -22,17 +22,24 @@ public class CallActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
 
-        if (intent == null ||
-            !YaaroFirebaseMessagingService.ACTION_DECLINE
-                .equals(intent.getAction())) {
-            return;
-        }
+        if (intent == null) return;
+        final String action = intent.getAction();
+        if (!YaaroFirebaseMessagingService.ACTION_DECLINE.equals(action) &&
+                !YaaroFirebaseMessagingService.ACTION_ACCEPT.equals(action)) return;
 
         final String callId = intent.getStringExtra(
             YaaroFirebaseMessagingService.EXTRA_CALL_ID
         );
+        if (callId == null || callId.trim().isEmpty()) return;
 
-        if (callId == null || callId.isEmpty()) return;
+        if (YaaroFirebaseMessagingService.ACTION_ACCEPT.equals(action)) {
+            // Never launch an Activity or claim an accepted/connected call here.
+            // Background WebRTC and microphone foreground-service eligibility
+            // must be established before publishing an answer or changing status.
+            // Leave the incoming notification intact until that integration exists.
+            Log.w("YaaroAccept", "Native background answer not yet available");
+            return;
+        }
 
         final Context appContext = context.getApplicationContext();
         final PendingResult pendingResult = goAsync();
