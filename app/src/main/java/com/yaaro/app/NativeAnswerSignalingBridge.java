@@ -30,7 +30,9 @@ public final class NativeAnswerSignalingBridge {
     private boolean negotiationStarted;
     private boolean stopped;
     private boolean remoteDescriptionReady;
+    private boolean signalingReady;
     private final List<IceCandidate> pendingRemoteIce = new ArrayList<>();
+    private final List<IceCandidate> pendingLocalIce = new ArrayList<>();
 
     public NativeAnswerSignalingBridge(NativeVoiceCallCoordinator coordinator,
             String callId, String localUid, String remoteUid, Listener listener) {
@@ -51,6 +53,12 @@ public final class NativeAnswerSignalingBridge {
                 new NativePeerConnectionObserver.Listener() {
                     @Override public void onLocalIceCandidate(IceCandidate candidate) {
                         if (stopped) return;
+                        synchronized (NativeAnswerSignalingBridge.this) {
+                            if (!signalingReady) {
+                                pendingLocalIce.add(candidate);
+                                return;
+                            }
+                        }
                         try {
                             coordinator.publishLocalIce(callId, localUid, candidate);
                         } catch (RuntimeException error) {
@@ -122,6 +130,17 @@ public final class NativeAnswerSignalingBridge {
         };
         coordinator.observeSignaling(callId, signalingListener);
         coordinator.observeRemoteIce(callId, remoteUid, signalingListener);
+        List<IceCandidate> buffered;
+        synchronized (this) {
+            signalingReady = true;
+            buffered = new ArrayList<>(pendingLocalIce);
+            pendingLocalIce.clear();
+        }
+        for (IceCandidate candidate : buffered) {
+            if (stopped) break;
+            try { coordinator.publishLocalIce(callId, localUid, candidate); }
+            catch (RuntimeException error) { listener.onFailure("Local ICE: " + error.getMessage()); }
+        }
     }
 
     private void applyRemoteIce(IceCandidate candidate) {
@@ -151,5 +170,6 @@ public final class NativeAnswerSignalingBridge {
     public synchronized void stop() {
         stopped = true;
         pendingRemoteIce.clear();
+        pendingLocalIce.clear();
     }
 }
