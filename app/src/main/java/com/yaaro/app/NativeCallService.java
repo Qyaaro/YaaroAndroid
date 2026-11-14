@@ -31,6 +31,19 @@ public final class NativeCallService extends Service {
     private static final int NOTIFICATION_ID = 2109;
     private static final String TAG = "YaaroNativeCall";
     private String activeCallId;
+    private static volatile String authorizedCallId;
+
+    /** In-process authorization only; never accept a call ID from an untrusted Intent alone. */
+    public static synchronized void authorizeFromVisibleCall(String callId) {
+        if (callId == null || callId.isEmpty()) {
+            throw new IllegalArgumentException("Call ID required");
+        }
+        authorizedCallId = callId;
+    }
+
+    public static synchronized void revokeAuthorization(String callId) {
+        if (callId != null && callId.equals(authorizedCallId)) authorizedCallId = null;
+    }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -44,6 +57,7 @@ public final class NativeCallService extends Service {
             if (activeCallId != null && activeCallId.equals(requestedId)) {
                 stopForeground(true);
                 activeCallId = null;
+                revokeAuthorization(requestedId);
                 stopSelf();
             }
             return START_NOT_STICKY;
@@ -54,6 +68,7 @@ public final class NativeCallService extends Service {
         }
         String callId = intent.getStringExtra(EXTRA_CALL_ID);
         if (callId == null || callId.isEmpty() ||
+                !callId.equals(authorizedCallId) ||
                 (activeCallId != null && !activeCallId.equals(callId)) ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
                         != PackageManager.PERMISSION_GRANTED) {
@@ -94,6 +109,7 @@ public final class NativeCallService extends Service {
 
     @Override
     public void onDestroy() {
+        revokeAuthorization(activeCallId);
         activeCallId = null;
         super.onDestroy();
     }
