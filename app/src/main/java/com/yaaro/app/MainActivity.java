@@ -416,8 +416,13 @@ public void chooseRingtone() {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if (!request.isForMainFrame()) return false;
                 Uri target = request.getUrl();
+                if (!request.isForMainFrame()) {
+                    // The legacy JavaScript interface is exposed to every frame.
+                    // Reject cross-origin frame navigations until the bridge is
+                    // migrated to an origin-scoped WebMessageListener.
+                    return !isTrustedYaaroUri(target);
+                }
                 // Do not navigate the privileged bridge to third-party pages.
                 return !isTrustedYaaroUri(target);
             }
