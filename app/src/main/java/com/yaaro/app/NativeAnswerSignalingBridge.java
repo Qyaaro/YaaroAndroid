@@ -27,6 +27,7 @@ public final class NativeAnswerSignalingBridge {
     private final String localUid;
     private final String remoteUid;
     private final Listener listener;
+    private static final int MAX_BUFFERED_ICE = 256;
     private boolean negotiationStarted;
     private boolean stopped;
     private boolean remoteDescriptionReady;
@@ -55,6 +56,10 @@ public final class NativeAnswerSignalingBridge {
                         if (stopped) return;
                         synchronized (NativeAnswerSignalingBridge.this) {
                             if (!signalingReady) {
+                                if (pendingLocalIce.size() >= MAX_BUFFERED_ICE) {
+                                    listener.onFailure("Local ICE buffer limit exceeded");
+                                    return;
+                                }
                                 pendingLocalIce.add(candidate);
                                 return;
                             }
@@ -118,6 +123,10 @@ public final class NativeAnswerSignalingBridge {
                 synchronized (NativeAnswerSignalingBridge.this) {
                     if (stopped) return;
                     if (!remoteDescriptionReady) {
+                        if (pendingRemoteIce.size() >= MAX_BUFFERED_ICE) {
+                            listener.onFailure("Remote ICE buffer limit exceeded");
+                            return;
+                        }
                         pendingRemoteIce.add(candidate);
                         return;
                     }
