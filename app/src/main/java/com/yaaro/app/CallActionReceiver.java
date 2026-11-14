@@ -4,10 +4,11 @@ package com.yaaro.app;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.util.Log;
 
 import org.json.JSONObject;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -49,84 +50,58 @@ public class CallActionReceiver extends BroadcastReceiver {
         YaaroRingtonePlayer.stop();
         YaaroFirebaseMessagingService.cancelCallNotification(appContext, callId);
 
-        new Thread(() -> {
-            try {
-                SharedPreferences prefs =
-                    appContext.getSharedPreferences(
-                        "yaaro", Context.MODE_PRIVATE
-                    );
-
-                String token = prefs.getString(
-                    "firebase_id_token", ""
-                );
-
-                String uid = prefs.getString(
-                    "firebase_uid", ""
-                );
-
-                if (token == null || token.isEmpty() ||
-                    uid == null || uid.isEmpty()) {
-                    Log.e("YaaroDecline", "Missing login session");
-                    return;
-                }
-
-                JSONObject body = new JSONObject();
-                body.put("action", "decline");
-                body.put("callId", callId);
-                body.put("toUid", uid);
-
-                HttpURLConnection connection =
-                    (HttpURLConnection)
-                        new URL(WORKER_URL).openConnection();
-
-                try {
-                    connection.setRequestMethod("POST");
-                    connection.setConnectTimeout(5000);
-                    connection.setReadTimeout(5000);
-                    connection.setDoOutput(true);
-
-                    connection.setRequestProperty(
-                        "Content-Type", "application/json"
-                    );
-
-                    connection.setRequestProperty(
-                        "Authorization", "Bearer " + token
-                    );
-
-                    byte[] data = body.toString().getBytes(
-                        StandardCharsets.UTF_8
-                    );
-
-                    try (OutputStream output =
-                             connection.getOutputStream()) {
-                        output.write(data);
-                    }
-
-                    int response = connection.getResponseCode();
-
-                    if (response >= 200 && response < 300) {
-                        YaaroFirebaseMessagingService
-                            .cancelCallNotification(
-                                appContext, callId
-                            );
-
-                        Log.d("YaaroDecline", "Call rejected");
-                    } else {
-                        Log.e(
-                            "YaaroDecline",
-                            "Worker response: " + response
-                        );
-                    }
-
-                } finally {
-                    connection.disconnect();
-                }
-
-            } catch (Exception e) {
-                Log.e("YaaroDecline", "Decline failed", e);
-            } finally {
+        // Use the native Firebase session, not an expired WebView-cached ID token.
+        // This is asynchronous and does not launch or unlock the Activity.
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null || !user.isEmailVerified()) {
+            Log.w("YaaroDecline", "No verified native Firebase session");
+            pendingResult.finish();
+            return;
+        }
+        final String receiverUid = user.getUid();
+        user.getIdToken(false).addOnCompleteListener(task -> {
+            if (!task.isSuccessful() || task.getResult() == null ||
+                    task.getResult().getToken() == null) {
+                Log.e("YaaroDecline", "Unable to obtain native Firebase ID token");
                 pendingResult.finish();
+                return;
             }
-        }).start();
+            final String token = task.getResult().getToken();
+            new Thread(() -> {
+                try {
+                    JSONObject body = new JSONObject();
+                    body.put("action", "decline");
+                    body.put("callId", callId);
+                    body.put("toUid", receiverUid);
+
+                    HttpURLConnection connection =
+                        (HttpURLConnection) new URL(WORKER_URL).openConnection();
+                    try {
+                        connection.setRequestMethod("POST");
+                        connection.setConnectTimeout(4000);
+                        connection.setReadTimeout(4000);
+                        connection.setDoOutput(true);
+                        connection.setRequestProperty("Content-Type", "application/json");
+                        connection.setRequestProperty("Authorization", "Bearer " + token);
+                        byte[] data = body.toString().getBytes(StandardCharsets.UTF_8);
+                        try (OutputStream output = connection.getOutputStream()) {
+                            output.write(data);
+                        }
+                        int response = connection.getResponseCode();
+                        if (response >= 200 && response < 300) {
+                            Log.d("YaaroDecline", "Call rejected");
+                        } else {
+                            Log.e("YaaroDecline", "Worker response: " + response);
+                        }
+                    } finally {
+                        connection.disconnect();
+                    }
+                } catch (Exception e) {
+                    Log.e("YaaroDecline", "Decline failed", e);
+                } finally {
+                    pendingResult.finish();
+                }
+            }, "YaaroDeclineWorker").start();
+        });
     }
 }
