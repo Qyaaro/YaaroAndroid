@@ -1,6 +1,7 @@
 package com.yaaro.app;
 
 import android.os.Bundle;
+import android.content.Intent;
 import android.telecom.TelecomManager;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -55,6 +56,12 @@ public final class YaaroConnectionService extends ConnectionService {
                 YaaroRingtonePlayer.stop();
                 YaaroFirebaseMessagingService.cancelCallNotification(
                         getApplicationContext(), callId);
+                // Reuse the authenticated Worker decline flow. The explicit
+                // in-app broadcast never launches MainActivity.
+                Intent decline = new Intent(getApplicationContext(), CallActionReceiver.class);
+                decline.setAction(YaaroFirebaseMessagingService.ACTION_DECLINE);
+                decline.putExtra(YaaroFirebaseMessagingService.EXTRA_CALL_ID, callId);
+                getApplicationContext().sendBroadcast(decline);
                 setDisconnected(new DisconnectCause(DisconnectCause.REJECTED));
                 destroy();
             }
