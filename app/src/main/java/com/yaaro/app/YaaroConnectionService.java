@@ -97,7 +97,7 @@ public final class YaaroConnectionService extends ConnectionService {
                         connection.destroy();
                         return;
                     }
-                    if (closed.compareAndSet(false, false)) connection.setRinging();
+                    if (!closed.get()) connection.setRinging();
                 });
         return connection;
     }
