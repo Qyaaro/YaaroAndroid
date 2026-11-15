@@ -46,8 +46,18 @@ public final class YaaroConnectionService extends ConnectionService {
         final AtomicBoolean closed = new AtomicBoolean(false);
         Connection connection = new Connection() {
             @Override public void onAnswer() {
-                // Never claim an active call without an authorized WebRTC session.
-                closed.set(true);
+                // Route Telecom's answer request through the same authenticated
+                // Firebase/SDP/microphone preflight as notification Accept.
+                // This receiver does not start microphone capture or open UI.
+                if (!closed.compareAndSet(false, true)) return;
+                YaaroRingtonePlayer.stop();
+                YaaroFirebaseMessagingService.cancelCallNotification(
+                        getApplicationContext(), callId);
+                Intent accept = new Intent(getApplicationContext(), CallActionReceiver.class);
+                accept.setAction(YaaroFirebaseMessagingService.ACTION_ACCEPT);
+                accept.putExtra(YaaroFirebaseMessagingService.EXTRA_CALL_ID, callId);
+                getApplicationContext().sendBroadcast(accept);
+                // Do not report ACTIVE: no authorized WebRTC peer is running yet.
                 setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
                 destroy();
             }
