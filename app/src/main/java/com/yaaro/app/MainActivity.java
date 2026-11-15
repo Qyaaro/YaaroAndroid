@@ -17,6 +17,8 @@ import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import java.io.IOException;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -30,6 +32,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -98,6 +103,10 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
         webView = findViewById(R.id.webview);
         progressBar = findViewById(R.id.progress);
 
+        // Register the Telecom account while the app is visible; this does not
+        // initiate a call, request microphone access, or open another screen.
+        YaaroTelecomAccount.register(getApplicationContext());
+
         fetchAndStoreFcmToken();
         setupWebView();
         ensurePermissionsThenLoad();
@@ -110,7 +119,8 @@ protected void onNewIntent(Intent intent) {
     if (webView != null) {
         webView.evaluateJavascript(
             "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
-            "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
+            "if (typeof checkNativeDecline === 'function') checkNativeDecline();" +
+            "if (typeof checkNativeViewCall === 'function') checkNativeViewCall();",
             null
         );
     }
@@ -136,18 +146,95 @@ protected void onNewIntent(Intent intent) {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         webView.addJavascriptInterface(new Object() {
    
+@JavascriptInterface
+public void signInNativeFirebase(String email, String password, String expectedUid) {
+    // Only accept credentials from the trusted QYAARO origin.
+    if (!isTrustedYaaroPage() || email == null || email.isEmpty() ||
+            password == null || password.isEmpty() ||
+            expectedUid == null || expectedUid.isEmpty()) return;
+    FirebaseAuth auth = FirebaseAuth.getInstance();
+    auth.signInWithEmailAndPassword(email, password)
+        .addOnCompleteListener(task -> {
+            FirebaseUser nativeUser = auth.getCurrentUser();
+            if (!task.isSuccessful() || nativeUser == null ||
+                    !expectedUid.equals(nativeUser.getUid()) || !nativeUser.isEmailVerified()) {
+                auth.signOut();
+                Log.w("YaaroNativeAuth", "Native Firebase sign-in or identity check failed");
+                notifyNativeAuthResult(expectedUid, false);
+                return;
+            }
+            Log.d("YaaroNativeAuth", "Native Firebase session established");
+            notifyNativeAuthResult(expectedUid, true);
+        });
+}
+
+private void notifyNativeAuthResult(String expectedUid, boolean success) {
+    runOnUiThread(() -> {
+        if (webView == null || !isTrustedYaaroPage()) return;
+        String uid = org.json.JSONObject.quote(expectedUid);
+        webView.evaluateJavascript(
+            "if (typeof window.onYaaroNativeAuthResult === 'function') " +
+            "window.onYaaroNativeAuthResult(" + uid + "," + success + ");", null);
+    });
+}
+
+@JavascriptInterface
+public boolean isNativeFirebaseSignedIn(String expectedUid) {
+    if (!isTrustedYaaroPage() || expectedUid == null) return false;
+    FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+    return user != null && expectedUid.equals(user.getUid()) && user.isEmailVerified();
+}
+
+@JavascriptInterface
+public void verifyNativeFirebaseDatabase(String expectedUid) {
+    if (!isTrustedYaaroPage() || expectedUid == null || expectedUid.isEmpty()) return;
+    FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+    if (user == null || !expectedUid.equals(user.getUid()) || !user.isEmailVerified()) {
+        notifyNativeDatabaseResult(expectedUid, false);
+        return;
+    }
+    // Read only the signed-in user's profile; Firebase Database rules decide access.
+    com.google.firebase.database.FirebaseDatabase.getInstance()
+        .getReference("users").child(user.getUid()).get()
+        .addOnCompleteListener(task ->
+            notifyNativeDatabaseResult(expectedUid, task.isSuccessful() &&
+                task.getResult() != null && task.getResult().exists()));
+}
+
+private void notifyNativeDatabaseResult(String expectedUid, boolean success) {
+    runOnUiThread(() -> {
+        if (webView == null || !isTrustedYaaroPage()) return;
+        webView.evaluateJavascript(
+            "if (typeof window.onYaaroNativeDatabaseResult === 'function') " +
+            "window.onYaaroNativeDatabaseResult(" +
+            org.json.JSONObject.quote(expectedUid) + "," + success + ");", null);
+    });
+}
+
+@JavascriptInterface
+public void signOutNativeFirebase() {
+    if (!isTrustedYaaroPage()) return;
+    FirebaseAuth.getInstance().signOut();
+    // Prevent a later notification action from reusing the previous user's
+    // cached credentials after logout or account switching.
+    getSharedPreferences("yaaro", MODE_PRIVATE).edit()
+        .remove("firebase_id_token")
+        .remove("firebase_uid")
+        .apply();
+}
+
 @JavascriptInterface
 public void setFirebaseIdToken(String token) {
     getSharedPreferences("yaaro", MODE_PRIVATE)
@@ -164,6 +251,42 @@ public void setFirebaseUid(String uid) {
         .apply();
 }
          
+// Read-only bridge for notification-body taps. The web call screen can
+// consume this once a matching incoming/active call is verified.
+@JavascriptInterface
+public String getPendingViewCallId() {
+    Intent intent = MainActivity.this.getIntent();
+    if (intent == null) return "";
+
+    String action = intent.getStringExtra(
+        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+    );
+    if (!"view".equals(action)) return "";
+
+    String callId = intent.getStringExtra(
+        YaaroFirebaseMessagingService.EXTRA_CALL_ID
+    );
+    return callId != null ? callId : "";
+}
+
+@JavascriptInterface
+public void completePendingView(String completedCallId) {
+    if (completedCallId == null || completedCallId.isEmpty()) return;
+    runOnUiThread(() -> {
+        Intent intent = getIntent();
+        if (intent == null) return;
+        String action = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+        );
+        String callId = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_CALL_ID
+        );
+        if (!"view".equals(action) || !completedCallId.equals(callId)) return;
+        intent.removeExtra(YaaroFirebaseMessagingService.EXTRA_FCM_ACTION);
+        intent.removeExtra(YaaroFirebaseMessagingService.EXTRA_CALL_ID);
+    });
+}
+
 @JavascriptInterface
 public String getPendingCallId() {
     Intent intent = MainActivity.this.getIntent();
@@ -209,6 +332,7 @@ public void completePendingAccept(String completedCallId) {
         );
 
         YaaroRingtonePlayer.stop();
+        YaaroFirebaseMessagingService.cancelCallNotification(MainActivity.this, completedCallId);
     });
 }
             
@@ -280,11 +404,37 @@ public void chooseRingtone() {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if ("https".equals(request.getUrl().getScheme())) {
-                    return false;
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                // Feature-branch test APK only: serve the reviewed web feature HTML
+                // at the existing trusted HTTPS origin. Never intercept Firebase APIs.
+                Uri uri = request.getUrl();
+                if (request.isForMainFrame() && "GET".equalsIgnoreCase(request.getMethod()) &&
+                        YAARO_URL.equals(uri.toString())) {
+                    try {
+                        WebResourceResponse response = new WebResourceResponse(
+                            "text/html", "UTF-8",
+                            getAssets().open("qa_auth_preview.html"));
+                        response.setResponseHeaders(java.util.Collections.singletonMap(
+                            "Cache-Control", "no-store"));
+                        return response;
+                    } catch (IOException e) {
+                        Log.e("YaaroAuthPreview", "Bundled web preview unavailable", e);
+                    }
                 }
-                return true;
+                return super.shouldInterceptRequest(view, request);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri target = request.getUrl();
+                if (!request.isForMainFrame()) {
+                    // The legacy JavaScript interface is exposed to every frame.
+                    // Reject cross-origin frame navigations until the bridge is
+                    // migrated to an origin-scoped WebMessageListener.
+                    return !isTrustedYaaroUri(target);
+                }
+                // Do not navigate the privileged bridge to third-party pages.
+                return !isTrustedYaaroUri(target);
             }
 
             @Override
@@ -297,7 +447,8 @@ public void chooseRingtone() {
                 progressBar.setVisibility(View.GONE);
                 view.evaluateJavascript(
                 "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
-                "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
+                "if (typeof checkNativeDecline === 'function') checkNativeDecline();" +
+            "if (typeof checkNativeViewCall === 'function') checkNativeViewCall();",
                 null
               );
             }
@@ -307,11 +458,34 @@ public void chooseRingtone() {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> {
-                    if (hasAllPermissions()) {
-                        request.grant(request.getResources());
+                    Uri origin = request.getOrigin();
+                    // WebView PermissionRequest.getOrigin() contains only the
+                    // scheme/host/port, not the /yaaro-web/ page path.
+                    // Check the trusted page separately before granting capture.
+                    if (!isTrustedYaaroOrigin(origin) || !isTrustedYaaroPage()) {
+                        request.deny();
+                        return;
+                    }
+                    // Grant only the camera/microphone resources the app supports.
+                    java.util.List<String> allowed = new java.util.ArrayList<>();
+                    for (String resource : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) ||
+                                PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
+                            allowed.add(resource);
+                        } else {
+                            request.deny();
+                            return;
+                        }
+                    }
+                    if (allowed.isEmpty()) {
+                        request.deny();
+                        return;
+                    }
+                    if (hasCapturePermissions(request.getResources())) {
+                        request.grant(allowed.toArray(new String[0]));
                     } else {
                         pendingWebPermissionRequest = request;
-                        requestAndroidPermissions();
+                        requestCapturePermissions(request.getResources());
                     }
                 });
             }
@@ -319,6 +493,10 @@ public void chooseRingtone() {
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback,
                                              FileChooserParams fileChooserParams) {
+                if (!isTrustedYaaroPage()) {
+                    filePathCallback.onReceiveValue(null);
+                    return false;
+                }
                 if (MainActivity.this.filePathCallback != null) {
                     MainActivity.this.filePathCallback.onReceiveValue(null);
                 }
@@ -346,6 +524,63 @@ public void chooseRingtone() {
                 }
             }
         });
+    }
+
+    private boolean hasCapturePermissions(String[] resources) {
+        if (!onlySupportedCaptureResources(resources)) return false;
+        for (String resource : resources) {
+            String permission = PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)
+                    ? Manifest.permission.RECORD_AUDIO : Manifest.permission.CAMERA;
+            if (ContextCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED) return false;
+        }
+        return true;
+    }
+
+    private void requestCapturePermissions(String[] resources) {
+        List<String> missing = new ArrayList<>();
+        for (String resource : resources) {
+            String permission = PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)
+                    ? Manifest.permission.RECORD_AUDIO : Manifest.permission.CAMERA;
+            if (ContextCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED && !missing.contains(permission)) {
+                missing.add(permission);
+            }
+        }
+        if (!missing.isEmpty()) {
+            ActivityCompat.requestPermissions(this,
+                    missing.toArray(new String[0]), PERMISSION_REQUEST_CODE);
+        }
+    }
+
+    private boolean onlySupportedCaptureResources(String[] resources) {
+        if (resources == null || resources.length == 0) return false;
+        for (String resource : resources) {
+            if (!PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) &&
+                    !PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) return false;
+        }
+        return true;
+    }
+
+    private boolean isTrustedYaaroOrigin(Uri uri) {
+        return uri != null && "https".equalsIgnoreCase(uri.getScheme()) &&
+                "qyaaro.github.io".equalsIgnoreCase(uri.getHost()) &&
+                uri.getPort() == -1;
+    }
+
+    private boolean isTrustedYaaroUri(Uri uri) {
+        if (uri == null || !"https".equalsIgnoreCase(uri.getScheme()) ||
+                !"qyaaro.github.io".equalsIgnoreCase(uri.getHost()) ||
+                uri.getPort() != -1) return false;
+        String path = uri.getPath();
+        return "/yaaro-web/".equals(path) || "/yaaro-web/index.html".equals(path);
+    }
+
+    private boolean isTrustedYaaroPage() {
+        if (webView == null) return false;
+        // WebView's current URL is not proof of the calling iframe's origin.
+        // Keep this check as defense-in-depth, not as frame authentication.
+        return isTrustedYaaroUri(Uri.parse(webView.getUrl() == null ? "" : webView.getUrl()));
     }
 
     private void ensurePermissionsThenLoad() {
@@ -382,8 +617,15 @@ public void chooseRingtone() {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (pendingWebPermissionRequest != null && hasAllPermissions()) {
-                pendingWebPermissionRequest.grant(pendingWebPermissionRequest.getResources());
+            if (pendingWebPermissionRequest != null &&
+                    hasCapturePermissions(pendingWebPermissionRequest.getResources())) {
+                if (isTrustedYaaroOrigin(pendingWebPermissionRequest.getOrigin()) &&
+                        isTrustedYaaroPage() &&
+                        onlySupportedCaptureResources(pendingWebPermissionRequest.getResources())) {
+                    pendingWebPermissionRequest.grant(pendingWebPermissionRequest.getResources());
+                } else {
+                    pendingWebPermissionRequest.deny();
+                }
                 pendingWebPermissionRequest = null;
             } else if (pendingWebPermissionRequest != null) {
                 pendingWebPermissionRequest.deny();

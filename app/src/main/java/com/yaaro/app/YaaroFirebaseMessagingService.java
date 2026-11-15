@@ -12,12 +12,21 @@ import androidx.core.app.NotificationCompat;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.DataSnapshot;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import java.util.Map;
 
 public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "YaaroFCM";
+    // Invalidates pending asynchronous verification when a cancellation arrives.
+    private static final ConcurrentHashMap<String, Long> CALL_GENERATIONS = new ConcurrentHashMap<>();
+    private static final AtomicLong NEXT_GENERATION = new AtomicLong();
     public static final String CHANNEL_ID = "yaaro_calls_v3";
 
     public static final String ACTION_ACCEPT = "com.yaaro.app.ACTION_ACCEPT_CALL";
@@ -28,7 +37,7 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
     @Override
     public void onNewToken(String token) {
-        Log.d(TAG, "FCM token: " + token);
+        Log.d(TAG, "FCM registration token refreshed");
         getSharedPreferences("yaaro", MODE_PRIVATE)
                 .edit()
                 .putString("fcm_token", token)
@@ -62,14 +71,65 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
         }
 
         if ("call_cancel".equals(type)) {
+            if (callId != null && !callId.isEmpty()) {
+                CALL_GENERATIONS.put(callId, NEXT_GENERATION.incrementAndGet());
+            }
             YaaroRingtonePlayer.stop();
             cancelCallNotification(this, callId);
+            YaaroConnectionService.closeCancelledCall(callId);
             return;
         }
 
         if ("call".equals(type)) {
-            YaaroRingtonePlayer.start(this);
-            showIncomingCallNotification(title, body, callId, fromName);
+            // A missing call ID cannot be safely answered or declined.
+            if (callId == null || callId.trim().isEmpty()) {
+                Log.w(TAG, "Ignoring incoming call push without callId");
+                return;
+            }
+            // Verify the call before ringing or showing actionable buttons.
+            // FCM may arrive late, after a call has ended, or for a previous account.
+            FirebaseUser receiver = FirebaseAuth.getInstance().getCurrentUser();
+            if (receiver == null || !receiver.isEmailVerified()) {
+                Log.w(TAG, "Ignoring call push without verified native receiver");
+                return;
+            }
+            final long generation = NEXT_GENERATION.incrementAndGet();
+            CALL_GENERATIONS.put(callId, generation);
+            final String receiverUid = receiver.getUid();
+            final String verifiedCallId = callId;
+            final String notificationTitle = title;
+            final String notificationBody = body;
+            final String callerName = fromName;
+            FirebaseDatabase.getInstance().getReference("calls").child(verifiedCallId)
+                    .get().addOnCompleteListener(task -> {
+                        if (!task.isSuccessful() || task.getResult() == null) {
+                            Log.w(TAG, "Unable to verify incoming call");
+                            return;
+                        }
+                        if (!Long.valueOf(generation).equals(CALL_GENERATIONS.get(verifiedCallId))) {
+                            Log.d(TAG, "Incoming verification superseded or cancelled");
+                            return;
+                        }
+                        FirebaseUser current = FirebaseAuth.getInstance().getCurrentUser();
+                        if (current == null || !receiverUid.equals(current.getUid())) return;
+                        DataSnapshot call = task.getResult();
+                        if (!receiverUid.equals(call.child("to").getValue(String.class)) ||
+                                !"voice".equals(call.child("type").getValue(String.class)) ||
+                                !"ringing".equals(call.child("status").getValue(String.class))) {
+                            Log.d(TAG, "Ignoring stale or misdirected call push");
+                            return;
+                        }
+                        // The Firebase receiver, call type and ringing state have
+                        // been verified. Register the incoming call with Telecom
+                        // before presenting QYAARO's existing notification.
+                        // Telecom integration is not yet an audio answer path.
+                        boolean telecomReported = YaaroTelecomAccount.reportVerifiedIncomingCall(
+                                getApplicationContext(), verifiedCallId);
+                        Log.i(TAG, "Telecom incoming call reported: " + telecomReported);
+                        YaaroRingtonePlayer.start(getApplicationContext());
+                        showIncomingCallNotification(notificationTitle, notificationBody,
+                                verifiedCallId, callerName);
+                    });
         }
     }
 
@@ -80,12 +140,14 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
 
         int notifyId = notifyIdFor(callId);
 
-        // Tap / Accept → open app
+        // Only the notification body may launch the call screen.
+        // Accept/Decline actions must never launch MainActivity.
         Intent openIntent = new Intent(this, MainActivity.class);
-        openIntent.setAction(Intent.ACTION_MAIN);
+        openIntent.setAction("com.yaaro.app.ACTION_VIEW_CALL");
         openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        openIntent.putExtra(EXTRA_FCM_ACTION, "view");
         openIntent.putExtra(EXTRA_CALL_ID, callId);
         openIntent.putExtra(EXTRA_FROM_NAME, fromName);
 
@@ -96,23 +158,20 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        Intent acceptIntent = new Intent(this, MainActivity.class);
+        Intent acceptIntent = new Intent(this, CallActionReceiver.class);
         acceptIntent.setAction(ACTION_ACCEPT);
-        acceptIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         acceptIntent.putExtra(EXTRA_FCM_ACTION, "accept");
         acceptIntent.putExtra(EXTRA_CALL_ID, callId);
         acceptIntent.putExtra(EXTRA_FROM_NAME, fromName);
 
-        PendingIntent acceptPending = PendingIntent.getActivity(
+        PendingIntent acceptPending = PendingIntent.getBroadcast(
                 this,
                 notifyId + 1,
                 acceptIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        // Decline → Receiver (ring stop + open app with decline)
+        // Decline → receiver only; never launch MainActivity.
         Intent declineIntent = new Intent(this, CallActionReceiver.class);
         declineIntent.setAction(ACTION_DECLINE);
         declineIntent.putExtra(EXTRA_CALL_ID, callId);
@@ -137,8 +196,7 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
                 .setOnlyAlertOnce(true)
                 .setContentIntent(contentPending)
                 .addAction(0, "Decline", declinePending)
-                .addAction(0, "Accept", acceptPending)
-                .setFullScreenIntent(contentPending, true);
+                .addAction(0, "Accept", acceptPending);
 
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm != null) {

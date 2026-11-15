@@ -2,3 +2,17 @@ plugins {
     id 'com.android.application' version '8.2.2' apply false
     id 'com.google.gms.google-services' version '4.4.2' apply false
 }
+
+// Compatibility redirect for the legacy WebRTC coordinate used by the app.
+// The original artifact is no longer resolvable from configured repositories.
+subprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.webrtc' &&
+                details.requested.name == 'google-webrtc') {
+                details.useTarget 'io.github.webrtc-sdk:android:150.7871.04'
+                details.because 'Use the published unprefixed org.webrtc Android AAR'
+            }
+        }
+    }
+}

@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
@@ -37,6 +40,22 @@
             </intent-filter>
         </activity>
 
+        <!-- Telecom self-managed call entry point; registration and WebRTC wiring pending. -->
+        <service
+            android:name=".YaaroConnectionService"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
+
+        <!-- Native call engine placeholder; not started by notification actions. -->
+        <service
+            android:name=".NativeCallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <service
             android:name=".YaaroFirebaseMessagingService"
             android:exported="false">
@@ -50,6 +69,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.yaaro.app.ACTION_DECLINE_CALL" />
+                <action android:name="com.yaaro.app.ACTION_ACCEPT_CALL" />
             </intent-filter>
         </receiver>
 

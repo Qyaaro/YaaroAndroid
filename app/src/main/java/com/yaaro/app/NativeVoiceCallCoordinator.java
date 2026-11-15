@@ -1,0 +1,177 @@
+package com.yaaro.app;
+
+import android.content.Context;
+
+import org.webrtc.PeerConnection;
+import org.webrtc.IceCandidate;
+import org.webrtc.SessionDescription;
+import com.google.firebase.database.DatabaseReference;
+
+/**
+ * Owns the lifecycle of one native voice call. Signaling and Android microphone
+ * permission / foreground service must be supplied by the caller.
+ *
+ * Do not invoke this from a background notification until the Android
+ * microphone foreground-service eligibility checks have succeeded.
+ */
+public final class NativeVoiceCallCoordinator {
+    private final NativeCallSession session = new NativeCallSession();
+    private final NativeWebRtcAudioEngine engine = new NativeWebRtcAudioEngine();
+    private final NativeCallSignaling signaling = new NativeCallSignaling();
+    private PeerConnection activePeer;
+    private Context audioContext;
+
+    public synchronized boolean incoming(String callId) {
+        return session.incoming(callId);
+    }
+
+    /**
+     * Builds an observer tied to the current call. Forward ICE only after
+     * signaling.observe(callId, localUid, listener) has established the matching call.
+     * The external listener is responsible for error handling and UI updates.
+     */
+    public synchronized NativePeerConnectionObserver createObserver(
+            String callId, String localUid,
+            NativePeerConnectionObserver.Listener listener) {
+        if (callId == null || !callId.equals(session.getCallId()) ||
+                session.getState() != NativeCallSession.State.RINGING ||
+                localUid == null || localUid.isEmpty() || listener == null) {
+            throw new IllegalStateException("Matching ringing call and listener required");
+        }
+        return new NativePeerConnectionObserver(new NativePeerConnectionObserver.Listener() {
+            @Override public void onLocalIceCandidate(IceCandidate candidate) {
+                // Local ICE may arrive before signaling is ready. The owner
+                // must publish candidates through publishLocalIce when ready.
+                listener.onLocalIceCandidate(candidate);
+            }
+            @Override public void onConnected() {
+                // Bridge must confirm Firebase SDP publication before advancing state.
+                listener.onConnected();
+            }
+            @Override public void onDisconnected() {
+                listener.onDisconnected();
+            }
+            @Override public void onFailed() {
+                listener.onFailed();
+            }
+        });
+    }
+
+    public synchronized PeerConnection prepareAnswer(
+            Context context, String callId,
+            PeerConnection.RTCConfiguration rtcConfig,
+            PeerConnection.Observer observer) {
+        if (!session.beginAnswer(callId)) {
+            throw new IllegalStateException("Call not ringing or ID mismatch");
+        }
+        try {
+            // Permission alone does not authorize background microphone use.
+            // The caller must separately establish a legal foreground context.
+            NativeVoiceAudioPolicy.requireMicrophonePermission(context);
+            NativeVoiceAudioPolicy.enterCallAudioMode(context);
+            audioContext = context.getApplicationContext();
+            engine.initialize(context);
+            activePeer = engine.createAudioConnection(rtcConfig, observer);
+            return activePeer;
+        } catch (RuntimeException | Error error) {
+            activePeer = null;
+            engine.closeCall();
+            restoreAudio();
+            session.end(callId);
+            throw error;
+        }
+    }
+
+    /**
+     * Must be called after the microphone permission and foreground-service
+     * eligibility checks have passed. The caller supplies a validated offer.
+     * Publishing the answer happens only after setLocalDescription succeeds.
+     */
+    public synchronized void negotiateAnswer(String callId, String offerSdp,
+            NativeAnswerNegotiator.Listener listener) {
+        if (activePeer == null || callId == null ||
+                !callId.equals(session.getCallId()) ||
+                session.getState() != NativeCallSession.State.CONNECTING) {
+            throw new IllegalStateException("No matching prepared call");
+        }
+        NativeAnswerNegotiator.answer(activePeer, offerSdp, listener);
+    }
+
+    public synchronized void observeSignaling(String callId, String localUid, NativeCallSignaling.Listener listener) {
+        if (callId == null || !callId.equals(session.getCallId())) {
+            throw new IllegalStateException("Call ID mismatch");
+        }
+        signaling.observe(callId, localUid, listener);
+    }
+
+    public synchronized void observeRemoteIce(String callId, String remoteUid,
+            NativeCallSignaling.Listener listener) {
+        signaling.observeRemoteCandidates(callId, remoteUid, listener);
+    }
+
+    public synchronized boolean addRemoteIce(String callId, IceCandidate candidate) {
+        return activePeer != null && callId != null &&
+                callId.equals(session.getCallId()) && candidate != null &&
+                activePeer.addIceCandidate(candidate);
+    }
+
+    public synchronized void publishAnswer(String callId, SessionDescription answer,
+            DatabaseReference.CompletionListener completion) {
+        signaling.publishAnswer(callId, answer, completion);
+    }
+
+    public synchronized void publishLocalIce(String callId, String localUid,
+            IceCandidate candidate) {
+        signaling.publishIceCandidate(callId, localUid, candidate);
+    }
+
+    /** Call only when WebRTC confirms a connected peer, not merely on answer SDP. */
+    public synchronized boolean markConnected(String callId) {
+        if (activePeer == null || !engine.hasActiveConnection() ||
+                activePeer.connectionState() != PeerConnection.PeerConnectionState.CONNECTED) {
+            return false;
+        }
+        return session.connected(callId);
+    }
+
+    /** Detach Firebase observers without releasing the native audio session. */
+    public synchronized void stopSignaling(String callId) {
+        if (callId != null && callId.equals(session.getCallId())) {
+            signaling.stop();
+        }
+    }
+
+    public synchronized boolean end(String callId) {
+        if (!session.end(callId)) return false;
+        signaling.stop();
+        activePeer = null;
+        engine.closeCall();
+        restoreAudio();
+        return true;
+    }
+
+    private void restoreAudio() {
+        if (audioContext != null) {
+            NativeVoiceAudioPolicy.clearCommunicationDevice(audioContext);
+            NativeVoiceAudioPolicy.restoreAudioMode(audioContext);
+            audioContext = null;
+        }
+    }
+
+    public synchronized String getDisplayStatus() {
+        return session.getDisplayStatus();
+    }
+
+    public synchronized String getCallId() {
+        return session.getCallId();
+    }
+
+    public synchronized void release() {
+        signaling.stop();
+        activePeer = null;
+        engine.release();
+        restoreAudio();
+        String callId = session.getCallId();
+        if (callId != null) session.end(callId);
+    }
+}
