@@ -48,6 +48,7 @@ public final class YaaroConnectionService extends ConnectionService {
         }
         Log.i(TAG, "Incoming Telecom connection created; WebRTC audio pending");
         final AtomicBoolean closed = new AtomicBoolean(false);
+        final AtomicBoolean verifiedRinging = new AtomicBoolean(false);
         final DatabaseReference statusRef = FirebaseDatabase.getInstance()
                 .getReference("calls").child(callId).child("status");
         final AtomicReference<ValueEventListener> statusObserver = new AtomicReference<>();
@@ -62,6 +63,12 @@ public final class YaaroConnectionService extends ConnectionService {
                 // This receiver does not start microphone capture or open UI.
                 if (!closed.compareAndSet(false, true)) return;
                 stopWatching.run();
+                if (!verifiedRinging.get()) {
+                    Log.w(TAG, "Telecom Answer denied before Firebase verification");
+                    setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
+                    destroy();
+                    return;
+                }
                 YaaroRingtonePlayer.stop();
                 YaaroFirebaseMessagingService.cancelCallNotification(
                         getApplicationContext(), callId);
@@ -167,7 +174,8 @@ public final class YaaroConnectionService extends ConnectionService {
                         stopWatching.run();
                         return;
                     }
-                    connection.setRinging();
+                    verifiedRinging.set(true);
+                    if (!closed.get()) connection.setRinging();
                 });
         return connection;
     }
