@@ -52,11 +52,17 @@ public final class YaaroConnectionService extends ConnectionService {
             }
             @Override public void onReject() {
                 closed.set(true);
+                YaaroRingtonePlayer.stop();
+                YaaroFirebaseMessagingService.cancelCallNotification(
+                        getApplicationContext(), callId);
                 setDisconnected(new DisconnectCause(DisconnectCause.REJECTED));
                 destroy();
             }
             @Override public void onDisconnect() {
                 closed.set(true);
+                YaaroRingtonePlayer.stop();
+                YaaroFirebaseMessagingService.cancelCallNotification(
+                        getApplicationContext(), callId);
                 setDisconnected(new DisconnectCause(DisconnectCause.LOCAL));
                 destroy();
             }
