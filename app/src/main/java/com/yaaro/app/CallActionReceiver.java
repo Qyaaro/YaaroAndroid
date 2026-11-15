@@ -56,6 +56,14 @@ public class CallActionReceiver extends BroadcastReceiver {
                                 Log.w("YaaroAccept", "Call verification failed");
                                 return;
                             }
+                            // The account may have changed while Firebase was loading.
+                            // Never authorize an answer for a previous signed-in user.
+                            FirebaseUser current = FirebaseAuth.getInstance().getCurrentUser();
+                            if (current == null || !current.isEmailVerified() ||
+                                    !receiverUid.equals(current.getUid())) {
+                                Log.w("YaaroAccept", "Native receiver changed during preflight");
+                                return;
+                            }
                             DataSnapshot call = task.getResult();
                             String to = call.child("to").getValue(String.class);
                             String type = call.child("type").getValue(String.class);
