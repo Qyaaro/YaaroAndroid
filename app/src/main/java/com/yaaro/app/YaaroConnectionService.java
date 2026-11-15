@@ -152,6 +152,13 @@ public final class YaaroConnectionService extends ConnectionService {
                         }
                         @Override public void onCancelled(DatabaseError error) {
                             Log.w(TAG, "Telecom status observer cancelled", error.toException());
+                            if (!closed.compareAndSet(false, true)) return;
+                            stopWatching.run();
+                            YaaroRingtonePlayer.stop();
+                            YaaroFirebaseMessagingService.cancelCallNotification(
+                                    getApplicationContext(), callId);
+                            connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
+                            connection.destroy();
                         }
                     };
                     statusObserver.set(observer);
