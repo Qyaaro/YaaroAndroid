@@ -62,7 +62,7 @@ public final class YaaroConnectionService extends ConnectionService {
                 destroy();
             }
             @Override public void onReject() {
-                closed.set(true);
+                if (!closed.compareAndSet(false, true)) return;
                 YaaroRingtonePlayer.stop();
                 YaaroFirebaseMessagingService.cancelCallNotification(
                         getApplicationContext(), callId);
@@ -76,7 +76,7 @@ public final class YaaroConnectionService extends ConnectionService {
                 destroy();
             }
             @Override public void onDisconnect() {
-                closed.set(true);
+                if (!closed.compareAndSet(false, true)) return;
                 YaaroRingtonePlayer.stop();
                 YaaroFirebaseMessagingService.cancelCallNotification(
                         getApplicationContext(), callId);
