@@ -117,6 +117,15 @@ public final class YaaroConnectionService extends ConnectionService {
                 destroy();
             }
         };
+        // Connection.destroy() is final. Observe destruction instead of overriding it.
+        // This also handles caller cancellation and failed Firebase verification.
+        connection.addConnectionListener(new Connection.Listener() {
+            @Override public void onDestroyed(Connection destroyed) {
+                closed.set(true);
+                stopWatching.run();
+                ACTIVE_CALLS.remove(callId, destroyed);
+            }
+        });
         Connection previous = ACTIVE_CALLS.putIfAbsent(callId, connection);
         if (previous != null) {
             Log.w(TAG, "Duplicate Telecom incoming connection for same call");
