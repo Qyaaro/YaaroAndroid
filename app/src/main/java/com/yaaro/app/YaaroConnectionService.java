@@ -30,6 +30,15 @@ public final class YaaroConnectionService extends ConnectionService {
     private static final ConcurrentHashMap<String, Connection> ACTIVE_CALLS =
             new ConcurrentHashMap<>();
 
+    /** Close a ringing Telecom entry when a matching caller-cancel push arrives. */
+    public static void closeCancelledCall(String callId) {
+        if (callId == null || callId.isEmpty()) return;
+        Connection connection = ACTIVE_CALLS.get(callId);
+        if (connection == null) return;
+        connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
+        connection.destroy();
+    }
+
     @Override
     public Connection onCreateIncomingConnection(
             PhoneAccountHandle handle, ConnectionRequest request) {
