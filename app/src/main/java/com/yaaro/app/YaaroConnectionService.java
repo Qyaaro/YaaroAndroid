@@ -30,11 +30,20 @@ public final class YaaroConnectionService extends ConnectionService {
     private static final ConcurrentHashMap<String, Connection> ACTIVE_CALLS =
             new ConcurrentHashMap<>();
 
+    private static final ConcurrentHashMap<Connection, Runnable> CONNECTION_CLEANUPS =
+            new ConcurrentHashMap<>();
+
+    private static void cleanupConnection(Connection connection) {
+        Runnable cleanup = CONNECTION_CLEANUPS.remove(connection);
+        if (cleanup != null) cleanup.run();
+    }
+
     /** Close a ringing Telecom entry when a matching caller-cancel push arrives. */
     public static void closeCancelledCall(String callId) {
         if (callId == null || callId.isEmpty()) return;
         Connection connection = ACTIVE_CALLS.get(callId);
         if (connection == null) return;
+        cleanupConnection(connection);
         connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
         connection.destroy();
     }
@@ -78,7 +87,9 @@ public final class YaaroConnectionService extends ConnectionService {
                 if (!verifiedRinging.get()) {
                     Log.w(TAG, "Telecom Answer denied before Firebase verification");
                     setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
-                    destroy();
+                    cleanupConnection(this);
+                    cleanupConnection(this);
+                destroy();
                     return;
                 }
                 YaaroRingtonePlayer.stop();
@@ -90,6 +101,7 @@ public final class YaaroConnectionService extends ConnectionService {
                 getApplicationContext().sendBroadcast(accept);
                 // Do not report ACTIVE: no authorized WebRTC peer is running yet.
                 setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
+                cleanupConnection(this);
                 destroy();
             }
             @Override public void onReject() {
@@ -105,6 +117,7 @@ public final class YaaroConnectionService extends ConnectionService {
                 decline.putExtra(YaaroFirebaseMessagingService.EXTRA_CALL_ID, callId);
                 getApplicationContext().sendBroadcast(decline);
                 setDisconnected(new DisconnectCause(DisconnectCause.REJECTED));
+                cleanupConnection(this);
                 destroy();
             }
             @Override public void onDisconnect() {
@@ -114,22 +127,20 @@ public final class YaaroConnectionService extends ConnectionService {
                 YaaroFirebaseMessagingService.cancelCallNotification(
                         getApplicationContext(), callId);
                 setDisconnected(new DisconnectCause(DisconnectCause.LOCAL));
+                cleanupConnection(this);
                 destroy();
             }
         };
-        // Connection.destroy() is final. Observe destruction instead of overriding it.
-        // This also handles caller cancellation and failed Firebase verification.
-        connection.addConnectionListener(new Connection.Listener() {
-            @Override public void onDestroyed(Connection destroyed) {
-                closed.set(true);
-                stopWatching.run();
-                ACTIVE_CALLS.remove(callId, destroyed);
-            }
+        CONNECTION_CLEANUPS.put(connection, () -> {
+            closed.set(true);
+            stopWatching.run();
+            ACTIVE_CALLS.remove(callId, connection);
         });
         Connection previous = ACTIVE_CALLS.putIfAbsent(callId, connection);
         if (previous != null) {
             Log.w(TAG, "Duplicate Telecom incoming connection for same call");
             connection.setDisconnected(new DisconnectCause(DisconnectCause.BUSY));
+            cleanupConnection(connection);
             connection.destroy();
             return connection;
         }
@@ -144,6 +155,7 @@ public final class YaaroConnectionService extends ConnectionService {
             closed.set(true);
             stopWatching.run();
             connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
+            cleanupConnection(connection);
             connection.destroy();
             return connection;
         }
@@ -159,7 +171,8 @@ public final class YaaroConnectionService extends ConnectionService {
                         closed.set(true);
                         stopWatching.run();
                         connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
-                        connection.destroy();
+                        cleanupConnection(connection);
+            connection.destroy();
                         return;
                     }
                     DataSnapshot call = task.getResult();
@@ -169,7 +182,8 @@ public final class YaaroConnectionService extends ConnectionService {
                         closed.set(true);
                         stopWatching.run();
                         connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
-                        connection.destroy();
+                        cleanupConnection(connection);
+            connection.destroy();
                         return;
                     }
                     if (closed.get()) return;
@@ -183,7 +197,8 @@ public final class YaaroConnectionService extends ConnectionService {
                             YaaroFirebaseMessagingService.cancelCallNotification(
                                     getApplicationContext(), callId);
                             connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
-                            connection.destroy();
+                            cleanupConnection(connection);
+            connection.destroy();
                         }
                         @Override public void onCancelled(DatabaseError error) {
                             Log.w(TAG, "Telecom status observer cancelled", error.toException());
@@ -193,7 +208,8 @@ public final class YaaroConnectionService extends ConnectionService {
                             YaaroFirebaseMessagingService.cancelCallNotification(
                                     getApplicationContext(), callId);
                             connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
-                            connection.destroy();
+                            cleanupConnection(connection);
+            connection.destroy();
                         }
                     };
                     statusObserver.set(observer);
