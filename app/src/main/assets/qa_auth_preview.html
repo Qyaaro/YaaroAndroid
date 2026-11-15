@@ -2438,48 +2438,11 @@ function scheduleNativeAcceptRetry() {
 }
 
 function nativeAcceptDebug(message) {
+    // Diagnostic messages belong in the console, not over the chat screen.
     console.log("[YAARO ACCEPT]", message);
-
-    let box = document.getElementById("yaaro-accept-debug");
-
-    if (!box) {
-        box = document.createElement("div");
-        box.id = "yaaro-accept-debug";
-        box.style.cssText =
-            "position:fixed;bottom:90px;left:10px;right:10px;" +
-            "z-index:2147483647;background:#15152b;" +
-            "color:white;padding:12px;border:2px solid #7c5cff;" +
-            "border-radius:10px;font-size:13px;" +
-            "pointer-events:none;white-space:pre-wrap";
-        document.body.appendChild(box);
-    }
-
-    box.textContent = message;
 }
 
-  
 async function checkNativeAccept() {
-  
-try {
-    const nativeBridge = window.YaaroAndroid;
-
-    if (!nativeBridge ||
-        typeof nativeBridge.getPendingCallId !== "function") {
-        nativeAcceptDebug("STEP 1: Android bridge missing");
-    } else {
-        const pendingId = nativeBridge.getPendingCallId();
-
-        if (!pendingId) {
-            nativeAcceptDebug("STEP 2: Accept callId missing");
-        } else if (!auth.currentUser || !userData) {
-            nativeAcceptDebug("STEP 3: Firebase not ready");
-        } else {
-            nativeAcceptDebug("STEP 4: Accept data ready");
-        }
-    }
-} catch (e) {
-    nativeAcceptDebug("DEBUG ERROR: " + e.message);
-}
     const bridge = window.YaaroAndroid;
 
     if (!bridge ||
