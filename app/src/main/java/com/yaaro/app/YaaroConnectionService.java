@@ -92,11 +92,12 @@ public final class YaaroConnectionService extends ConnectionService {
                     if (!receiverUid.equals(call.child("to").getValue(String.class)) ||
                             !"voice".equals(call.child("type").getValue(String.class)) ||
                             !"ringing".equals(call.child("status").getValue(String.class))) {
+                        closed.set(true);
                         connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
                         connection.destroy();
                         return;
                     }
-                    if (!closed.get()) connection.setRinging();
+                    if (closed.compareAndSet(false, false)) connection.setRinging();
                 });
         return connection;
     }
