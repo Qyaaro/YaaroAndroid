@@ -69,11 +69,11 @@ public final class YaaroConnectionService extends ConnectionService {
             if (observer != null) statusRef.removeEventListener(observer);
         };
         Connection connection = new Connection() {
-            @Override public void onDestroy() {
+            @Override public void destroy() {
                 closed.set(true);
                 stopWatching.run();
                 ACTIVE_CALLS.remove(callId, this);
-                super.onDestroy();
+                super.destroy();
             }
             @Override public void onAnswer() {
                 // Route Telecom's answer request through the same authenticated
