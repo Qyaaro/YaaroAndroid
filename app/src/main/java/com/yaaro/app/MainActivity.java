@@ -478,11 +478,11 @@ public void chooseRingtone() {
                         request.deny();
                         return;
                     }
-                    if (hasAllPermissions()) {
+                    if (hasCapturePermissions(request.getResources())) {
                         request.grant(allowed.toArray(new String[0]));
                     } else {
                         pendingWebPermissionRequest = request;
-                        requestAndroidPermissions();
+                        requestCapturePermissions(request.getResources());
                     }
                 });
             }
@@ -521,6 +521,33 @@ public void chooseRingtone() {
                 }
             }
         });
+    }
+
+    private boolean hasCapturePermissions(String[] resources) {
+        if (!onlySupportedCaptureResources(resources)) return false;
+        for (String resource : resources) {
+            String permission = PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)
+                    ? Manifest.permission.RECORD_AUDIO : Manifest.permission.CAMERA;
+            if (ContextCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED) return false;
+        }
+        return true;
+    }
+
+    private void requestCapturePermissions(String[] resources) {
+        List<String> missing = new ArrayList<>();
+        for (String resource : resources) {
+            String permission = PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)
+                    ? Manifest.permission.RECORD_AUDIO : Manifest.permission.CAMERA;
+            if (ContextCompat.checkSelfPermission(this, permission)
+                    != PackageManager.PERMISSION_GRANTED && !missing.contains(permission)) {
+                missing.add(permission);
+            }
+        }
+        if (!missing.isEmpty()) {
+            ActivityCompat.requestPermissions(this,
+                    missing.toArray(new String[0]), PERMISSION_REQUEST_CODE);
+        }
     }
 
     private boolean onlySupportedCaptureResources(String[] resources) {
@@ -581,7 +608,8 @@ public void chooseRingtone() {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
-            if (pendingWebPermissionRequest != null && hasAllPermissions()) {
+            if (pendingWebPermissionRequest != null &&
+                    hasCapturePermissions(pendingWebPermissionRequest.getResources())) {
                 if (isTrustedYaaroUri(pendingWebPermissionRequest.getOrigin()) &&
                         onlySupportedCaptureResources(pendingWebPermissionRequest.getResources())) {
                     pendingWebPermissionRequest.grant(pendingWebPermissionRequest.getResources());
