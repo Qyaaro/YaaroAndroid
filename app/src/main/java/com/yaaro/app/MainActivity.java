@@ -459,7 +459,10 @@ public void chooseRingtone() {
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> {
                     Uri origin = request.getOrigin();
-                    if (!isTrustedYaaroUri(origin)) {
+                    // WebView PermissionRequest.getOrigin() contains only the
+                    // scheme/host/port, not the /yaaro-web/ page path.
+                    // Check the trusted page separately before granting capture.
+                    if (!isTrustedYaaroOrigin(origin) || !isTrustedYaaroPage()) {
                         request.deny();
                         return;
                     }
@@ -559,6 +562,12 @@ public void chooseRingtone() {
         return true;
     }
 
+    private boolean isTrustedYaaroOrigin(Uri uri) {
+        return uri != null && "https".equalsIgnoreCase(uri.getScheme()) &&
+                "qyaaro.github.io".equalsIgnoreCase(uri.getHost()) &&
+                uri.getPort() == -1;
+    }
+
     private boolean isTrustedYaaroUri(Uri uri) {
         if (uri == null || !"https".equalsIgnoreCase(uri.getScheme()) ||
                 !"qyaaro.github.io".equalsIgnoreCase(uri.getHost()) ||
@@ -610,7 +619,8 @@ public void chooseRingtone() {
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (pendingWebPermissionRequest != null &&
                     hasCapturePermissions(pendingWebPermissionRequest.getResources())) {
-                if (isTrustedYaaroUri(pendingWebPermissionRequest.getOrigin()) &&
+                if (isTrustedYaaroOrigin(pendingWebPermissionRequest.getOrigin()) &&
+                        isTrustedYaaroPage() &&
                         onlySupportedCaptureResources(pendingWebPermissionRequest.getResources())) {
                     pendingWebPermissionRequest.grant(pendingWebPermissionRequest.getResources());
                 } else {
