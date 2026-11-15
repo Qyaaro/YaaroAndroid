@@ -7,6 +7,9 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.ValueEventListener;
 import android.telecom.Connection;
 import android.telecom.ConnectionRequest;
 import android.telecom.ConnectionService;
@@ -14,6 +17,7 @@ import android.telecom.DisconnectCause;
 import android.telecom.PhoneAccountHandle;
 import android.util.Log;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Telecom entry point for future self-managed voice calls.
@@ -44,12 +48,20 @@ public final class YaaroConnectionService extends ConnectionService {
         }
         Log.i(TAG, "Incoming Telecom connection created; WebRTC audio pending");
         final AtomicBoolean closed = new AtomicBoolean(false);
+        final DatabaseReference statusRef = FirebaseDatabase.getInstance()
+                .getReference("calls").child(callId).child("status");
+        final AtomicReference<ValueEventListener> statusObserver = new AtomicReference<>();
+        final Runnable stopWatching = () -> {
+            ValueEventListener observer = statusObserver.getAndSet(null);
+            if (observer != null) statusRef.removeEventListener(observer);
+        };
         Connection connection = new Connection() {
             @Override public void onAnswer() {
                 // Route Telecom's answer request through the same authenticated
                 // Firebase/SDP/microphone preflight as notification Accept.
                 // This receiver does not start microphone capture or open UI.
                 if (!closed.compareAndSet(false, true)) return;
+                stopWatching.run();
                 YaaroRingtonePlayer.stop();
                 YaaroFirebaseMessagingService.cancelCallNotification(
                         getApplicationContext(), callId);
@@ -63,6 +75,7 @@ public final class YaaroConnectionService extends ConnectionService {
             }
             @Override public void onReject() {
                 if (!closed.compareAndSet(false, true)) return;
+                stopWatching.run();
                 YaaroRingtonePlayer.stop();
                 YaaroFirebaseMessagingService.cancelCallNotification(
                         getApplicationContext(), callId);
@@ -77,6 +90,7 @@ public final class YaaroConnectionService extends ConnectionService {
             }
             @Override public void onDisconnect() {
                 if (!closed.compareAndSet(false, true)) return;
+                stopWatching.run();
                 YaaroRingtonePlayer.stop();
                 YaaroFirebaseMessagingService.cancelCallNotification(
                         getApplicationContext(), callId);
@@ -93,6 +107,7 @@ public final class YaaroConnectionService extends ConnectionService {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null || !user.isEmailVerified()) {
             closed.set(true);
+            stopWatching.run();
             connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
             connection.destroy();
             return connection;
@@ -107,6 +122,7 @@ public final class YaaroConnectionService extends ConnectionService {
                     if (current == null || !receiverUid.equals(current.getUid()) ||
                             !task.isSuccessful() || task.getResult() == null) {
                         closed.set(true);
+                        stopWatching.run();
                         connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
                         connection.destroy();
                         return;
@@ -116,11 +132,35 @@ public final class YaaroConnectionService extends ConnectionService {
                             !"voice".equals(call.child("type").getValue(String.class)) ||
                             !"ringing".equals(call.child("status").getValue(String.class))) {
                         closed.set(true);
+                        stopWatching.run();
                         connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
                         connection.destroy();
                         return;
                     }
-                    if (!closed.get()) connection.setRinging();
+                    if (closed.get()) return;
+                    ValueEventListener observer = new ValueEventListener() {
+                        @Override public void onDataChange(DataSnapshot snapshot) {
+                            String status = snapshot.getValue(String.class);
+                            if ("ringing".equals(status) || closed.get()) return;
+                            if (!closed.compareAndSet(false, true)) return;
+                            stopWatching.run();
+                            YaaroRingtonePlayer.stop();
+                            YaaroFirebaseMessagingService.cancelCallNotification(
+                                    getApplicationContext(), callId);
+                            connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
+                            connection.destroy();
+                        }
+                        @Override public void onCancelled(DatabaseError error) {
+                            Log.w(TAG, "Telecom status observer cancelled", error.toException());
+                        }
+                    };
+                    statusObserver.set(observer);
+                    statusRef.addValueEventListener(observer);
+                    if (closed.get()) {
+                        stopWatching.run();
+                        return;
+                    }
+                    connection.setRinging();
                 });
         return connection;
     }
