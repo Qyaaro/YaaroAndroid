@@ -45,6 +45,7 @@ public final class YaaroConnectionService extends ConnectionService {
         if (connection == null) return;
         cleanupConnection(connection);
         connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
+        cleanupConnection(connection);
         connection.destroy();
     }
 
@@ -87,8 +88,7 @@ public final class YaaroConnectionService extends ConnectionService {
                 if (!verifiedRinging.get()) {
                     Log.w(TAG, "Telecom Answer denied before Firebase verification");
                     setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
-                    cleanupConnection(this);
-                    cleanupConnection(this);
+                cleanupConnection(this);
                 destroy();
                     return;
                 }
@@ -171,7 +171,7 @@ public final class YaaroConnectionService extends ConnectionService {
                         closed.set(true);
                         stopWatching.run();
                         connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
-                        cleanupConnection(connection);
+            cleanupConnection(connection);
             connection.destroy();
                         return;
                     }
@@ -182,7 +182,7 @@ public final class YaaroConnectionService extends ConnectionService {
                         closed.set(true);
                         stopWatching.run();
                         connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
-                        cleanupConnection(connection);
+            cleanupConnection(connection);
             connection.destroy();
                         return;
                     }
@@ -197,7 +197,7 @@ public final class YaaroConnectionService extends ConnectionService {
                             YaaroFirebaseMessagingService.cancelCallNotification(
                                     getApplicationContext(), callId);
                             connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
-                            cleanupConnection(connection);
+            cleanupConnection(connection);
             connection.destroy();
                         }
                         @Override public void onCancelled(DatabaseError error) {
@@ -208,7 +208,7 @@ public final class YaaroConnectionService extends ConnectionService {
                             YaaroFirebaseMessagingService.cancelCallNotification(
                                     getApplicationContext(), callId);
                             connection.setDisconnected(new DisconnectCause(DisconnectCause.ERROR));
-                            cleanupConnection(connection);
+            cleanupConnection(connection);
             connection.destroy();
                         }
                     };
