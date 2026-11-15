@@ -43,7 +43,6 @@ public final class YaaroConnectionService extends ConnectionService {
         if (callId == null || callId.isEmpty()) return;
         Connection connection = ACTIVE_CALLS.get(callId);
         if (connection == null) return;
-        cleanupConnection(connection);
         connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
         cleanupConnection(connection);
         connection.destroy();
