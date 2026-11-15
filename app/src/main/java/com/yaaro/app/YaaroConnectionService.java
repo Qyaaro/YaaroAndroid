@@ -18,6 +18,7 @@ import android.telecom.PhoneAccountHandle;
 import android.util.Log;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Telecom entry point for future self-managed voice calls.
@@ -26,6 +27,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class YaaroConnectionService extends ConnectionService {
     private static final String TAG = "YaaroTelecom";
+    private static final ConcurrentHashMap<String, Connection> ACTIVE_CALLS =
+            new ConcurrentHashMap<>();
 
     @Override
     public Connection onCreateIncomingConnection(
@@ -57,6 +60,11 @@ public final class YaaroConnectionService extends ConnectionService {
             if (observer != null) statusRef.removeEventListener(observer);
         };
         Connection connection = new Connection() {
+            @Override public void onDestroy() {
+                stopWatching.run();
+                ACTIVE_CALLS.remove(callId, this);
+                super.onDestroy();
+            }
             @Override public void onAnswer() {
                 // Route Telecom's answer request through the same authenticated
                 // Firebase/SDP/microphone preflight as notification Accept.
@@ -105,6 +113,13 @@ public final class YaaroConnectionService extends ConnectionService {
                 destroy();
             }
         };
+        Connection previous = ACTIVE_CALLS.putIfAbsent(callId, connection);
+        if (previous != null) {
+            Log.w(TAG, "Duplicate Telecom incoming connection for same call");
+            connection.setDisconnected(new DisconnectCause(DisconnectCause.BUSY));
+            connection.destroy();
+            return connection;
+        }
         connection.setConnectionProperties(Connection.PROPERTY_SELF_MANAGED);
         connection.setExtras(incoming);
         connection.setInitializing();
