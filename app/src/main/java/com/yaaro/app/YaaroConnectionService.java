@@ -70,6 +70,7 @@ public final class YaaroConnectionService extends ConnectionService {
         };
         Connection connection = new Connection() {
             @Override public void onDestroy() {
+                closed.set(true);
                 stopWatching.run();
                 ACTIVE_CALLS.remove(callId, this);
                 super.onDestroy();
