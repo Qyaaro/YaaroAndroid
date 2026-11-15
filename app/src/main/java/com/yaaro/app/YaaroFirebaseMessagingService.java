@@ -76,6 +76,7 @@ public class YaaroFirebaseMessagingService extends FirebaseMessagingService {
             }
             YaaroRingtonePlayer.stop();
             cancelCallNotification(this, callId);
+            YaaroConnectionService.closeCancelledCall(callId);
             return;
         }
 
