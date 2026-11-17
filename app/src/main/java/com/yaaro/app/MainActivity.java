@@ -97,22 +97,44 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
 
         webView = findViewById(R.id.webview);
         progressBar = findViewById(R.id.progress);
-
+        savePendingAcceptFromIntent(getIntent());
+        
         fetchAndStoreFcmToken();
         setupWebView();
         ensurePermissionsThenLoad();
     }
+    
    @Override
-protected void onNewIntent(Intent intent) {
-    super.onNewIntent(intent);
-    setIntent(intent);
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        savePendingAcceptFromIntent(intent);
 
-    if (webView != null) {
-        webView.evaluateJavascript(
-            "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
-            "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
-            null
+        if (webView != null) {
+            webView.evaluateJavascript(
+                "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
+                "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
+                null
+            );
+        }
+    }
+
+    private void savePendingAcceptFromIntent(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
         );
+        String callId = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_CALL_ID
+        );
+        if ("accept".equals(action) && callId != null && !callId.isEmpty()) {
+            getSharedPreferences("yaaro", MODE_PRIVATE)
+                .edit()
+                .putString("pending_accept_call_id", callId)
+                .apply();
+        }
+    }
+    
     }
 }
     private void fetchAndStoreFcmToken() {
@@ -142,23 +164,25 @@ protected void onNewIntent(Intent intent) {
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
-        settings.setDisplayZoomControls(false);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        @JavascriptInterface
+    public String getPendingCallId() {
+        SharedPreferences sp = getSharedPreferences("yaaro", MODE_PRIVATE);
+        String saved = sp.getString("pending_accept_call_id", "");
+        if (saved != null && !saved.isEmpty()) return saved;
 
-        webView.addJavascriptInterface(new Object() {
-   
-@JavascriptInterface
-public void setFirebaseIdToken(String token) {
-    getSharedPreferences("yaaro", MODE_PRIVATE)
-        .edit()
-        .putString("firebase_id_token", token == null ? "" : token)
-        .apply();
-}
+        Intent intent = MainActivity.this.getIntent();
+        if (intent == null) return "";
 
-@JavascriptInterface
-public void setFirebaseUid(String uid) {
-    getSharedPreferences("yaaro", MODE_PRIVATE)
+        String action = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+        );
+        if (!"accept".equals(action)) return "";
+
+        String callId = intent.getStringExtra(
+            YaaroFirebaseMessagingService.EXTRA_CALL_ID
+        );
+        return callId != null ? callId : "";
+    }
         .edit()
         .putString("firebase_uid", uid == null ? "" : uid)
         .apply();
@@ -185,7 +209,10 @@ public String getPendingCallId() {
 @JavascriptInterface
 public void completePendingAccept(String completedCallId) {
     if (completedCallId == null || completedCallId.isEmpty()) return;
-
+getSharedPreferences("yaaro", MODE_PRIVATE)
+            .edit()
+            .remove("pending_accept_call_id")
+            .apply();
     runOnUiThread(() -> {
         Intent intent = getIntent();
         if (intent == null) return;
