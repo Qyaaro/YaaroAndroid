@@ -40,22 +40,20 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 1001;
 
     public static volatile boolean isAppForeground = false;
-    
-private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
-    registerForActivityResult(
-        new ActivityResultContracts.StartActivityForResult(),
-        result -> {
-            if (result.getResultCode() == RESULT_OK
-                    && result.getData() != null) {
 
-                Uri uri = result.getData().getParcelableExtra(
-                    android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI
-                );
-
-                YaaroRingtonePlayer.saveRingtone(this, uri);
+    private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
+        registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK
+                        && result.getData() != null) {
+                    Uri uri = result.getData().getParcelableExtra(
+                        android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI
+                    );
+                    YaaroRingtonePlayer.saveRingtone(this, uri);
+                }
             }
-        }
-    );
+        );
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -84,13 +82,13 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
-    protected void onCreate(Bundle savedInstanceState) {       
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setBackgroundDrawable(
-    new android.graphics.drawable.ColorDrawable(
-        android.graphics.Color.WHITE
-    )
-);
+            new android.graphics.drawable.ColorDrawable(
+                android.graphics.Color.WHITE
+            )
+        );
         setContentView(R.layout.activity_main);
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -98,13 +96,13 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
         webView = findViewById(R.id.webview);
         progressBar = findViewById(R.id.progress);
         savePendingAcceptFromIntent(getIntent());
-        
+
         fetchAndStoreFcmToken();
         setupWebView();
         ensurePermissionsThenLoad();
     }
-    
-   @Override
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -134,9 +132,7 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
                 .apply();
         }
     }
-    
-    }
-}
+
     private void fetchAndStoreFcmToken() {
         try {
             FirebaseMessaging.getInstance().getToken()
@@ -164,98 +160,98 @@ private final ActivityResultLauncher<Intent> ringtonePickerLauncher =
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
-        @JavascriptInterface
-    public String getPendingCallId() {
-        SharedPreferences sp = getSharedPreferences("yaaro", MODE_PRIVATE);
-        String saved = sp.getString("pending_accept_call_id", "");
-        if (saved != null && !saved.isEmpty()) return saved;
+        settings.setDisplayZoomControls(false);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
-        Intent intent = MainActivity.this.getIntent();
-        if (intent == null) return "";
+        webView.addJavascriptInterface(new Object() {
 
-        String action = intent.getStringExtra(
-            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
-        );
-        if (!"accept".equals(action)) return "";
+            @JavascriptInterface
+            public void setFirebaseIdToken(String token) {
+                getSharedPreferences("yaaro", MODE_PRIVATE)
+                    .edit()
+                    .putString("firebase_id_token", token == null ? "" : token)
+                    .apply();
+            }
 
-        String callId = intent.getStringExtra(
-            YaaroFirebaseMessagingService.EXTRA_CALL_ID
-        );
-        return callId != null ? callId : "";
-    }
-        .edit()
-        .putString("firebase_uid", uid == null ? "" : uid)
-        .apply();
-}
-         
-@JavascriptInterface
-public String getPendingCallId() {
-    Intent intent = MainActivity.this.getIntent();
-    if (intent == null) return "";
+            @JavascriptInterface
+            public void setFirebaseUid(String uid) {
+                getSharedPreferences("yaaro", MODE_PRIVATE)
+                    .edit()
+                    .putString("firebase_uid", uid == null ? "" : uid)
+                    .apply();
+            }
 
-    String action = intent.getStringExtra(
-        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
-    );
+            @JavascriptInterface
+            public String getPendingCallId() {
+                SharedPreferences sp = getSharedPreferences("yaaro", MODE_PRIVATE);
+                String saved = sp.getString("pending_accept_call_id", "");
+                if (saved != null && !saved.isEmpty()) return saved;
 
-    if (!"accept".equals(action)) return "";
+                Intent intent = MainActivity.this.getIntent();
+                if (intent == null) return "";
 
-    String callId = intent.getStringExtra(
-        YaaroFirebaseMessagingService.EXTRA_CALL_ID
-    );
+                String action = intent.getStringExtra(
+                    YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+                );
+                if (!"accept".equals(action)) return "";
 
-    return callId != null ? callId : "";
-}
+                String callId = intent.getStringExtra(
+                    YaaroFirebaseMessagingService.EXTRA_CALL_ID
+                );
+                return callId != null ? callId : "";
+            }
 
-@JavascriptInterface
-public void completePendingAccept(String completedCallId) {
-    if (completedCallId == null || completedCallId.isEmpty()) return;
-getSharedPreferences("yaaro", MODE_PRIVATE)
-            .edit()
-            .remove("pending_accept_call_id")
-            .apply();
-    runOnUiThread(() -> {
-        Intent intent = getIntent();
-        if (intent == null) return;
+            @JavascriptInterface
+            public void completePendingAccept(String completedCallId) {
+                if (completedCallId == null || completedCallId.isEmpty()) return;
 
-        String action = intent.getStringExtra(
-            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
-        );
+                getSharedPreferences("yaaro", MODE_PRIVATE)
+                    .edit()
+                    .remove("pending_accept_call_id")
+                    .apply();
 
-        String callId = intent.getStringExtra(
-            YaaroFirebaseMessagingService.EXTRA_CALL_ID
-        );
+                runOnUiThread(() -> {
+                    Intent intent = getIntent();
+                    if (intent == null) return;
 
-        if (!"accept".equals(action) ||
-            !completedCallId.equals(callId)) return;
+                    String action = intent.getStringExtra(
+                        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+                    );
+                    String callId = intent.getStringExtra(
+                        YaaroFirebaseMessagingService.EXTRA_CALL_ID
+                    );
 
-        intent.removeExtra(
-            YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
-        );
-        intent.removeExtra(
-            YaaroFirebaseMessagingService.EXTRA_CALL_ID
-        );
+                    if (!"accept".equals(action) ||
+                        !completedCallId.equals(callId)) return;
 
-        YaaroRingtonePlayer.stop();
-    });
-}
-            
-@JavascriptInterface
-    public String getPendingDeclineCallId() {
-    Intent intent = MainActivity.this.getIntent();
-    if (intent == null) return "";
+                    intent.removeExtra(
+                        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+                    );
+                    intent.removeExtra(
+                        YaaroFirebaseMessagingService.EXTRA_CALL_ID
+                    );
 
-    String action = intent.getStringExtra(
-        YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
-    );
+                    YaaroRingtonePlayer.stop();
+                });
+            }
 
-    if (!"decline".equals(action)) return "";
+            @JavascriptInterface
+            public String getPendingDeclineCallId() {
+                Intent intent = MainActivity.this.getIntent();
+                if (intent == null) return "";
 
-    String callId = intent.getStringExtra(
-        YaaroFirebaseMessagingService.EXTRA_CALL_ID
-    );
+                String action = intent.getStringExtra(
+                    YaaroFirebaseMessagingService.EXTRA_FCM_ACTION
+                );
+                if (!"decline".equals(action)) return "";
 
-    return callId != null ? callId : "";
-}
+                String callId = intent.getStringExtra(
+                    YaaroFirebaseMessagingService.EXTRA_CALL_ID
+                );
+                return callId != null ? callId : "";
+            }
+
             @JavascriptInterface
             public void setSpeakerphoneOn(boolean on) {
                 runOnUiThread(() -> {
@@ -268,35 +264,34 @@ getSharedPreferences("yaaro", MODE_PRIVATE)
                     } catch (Exception ignored) {}
                 });
             }
-            
-@JavascriptInterface
-public void chooseRingtone() {
-    runOnUiThread(() -> {
-        try {
-            Intent intent = new Intent(
-                android.media.RingtoneManager.ACTION_RINGTONE_PICKER
-            );
-            intent.putExtra(
-                android.media.RingtoneManager.EXTRA_RINGTONE_TYPE,
-                android.media.RingtoneManager.TYPE_RINGTONE
-            );
-            intent.putExtra(
-                android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT,
-                false
-            );
-            ringtonePickerLauncher.launch(intent);
-        } catch (Exception e) {
-            android.util.Log.e("YaaroRingtone", "Picker failed", e);
-        }
-    });
-}
+
+            @JavascriptInterface
+            public void chooseRingtone() {
+                runOnUiThread(() -> {
+                    try {
+                        Intent intent = new Intent(
+                            android.media.RingtoneManager.ACTION_RINGTONE_PICKER
+                        );
+                        intent.putExtra(
+                            android.media.RingtoneManager.EXTRA_RINGTONE_TYPE,
+                            android.media.RingtoneManager.TYPE_RINGTONE
+                        );
+                        intent.putExtra(
+                            android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT,
+                            false
+                        );
+                        ringtonePickerLauncher.launch(intent);
+                    } catch (Exception e) {
+                        android.util.Log.e("YaaroRingtone", "Picker failed", e);
+                    }
+                });
+            }
 
             @JavascriptInterface
             public void stopRingtone() {
-            runOnUiThread(() -> {
-              YaaroRingtonePlayer.stop();
-    });
-}
+                runOnUiThread(() -> YaaroRingtonePlayer.stop());
+            }
+
             @JavascriptInterface
             public String getFcmToken() {
                 SharedPreferences sp = getSharedPreferences("yaaro", MODE_PRIVATE);
@@ -323,10 +318,10 @@ public void chooseRingtone() {
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(View.GONE);
                 view.evaluateJavascript(
-                "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
-                "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
-                null
-              );
+                    "if (typeof checkNativeAccept === 'function') checkNativeAccept();" +
+                    "if (typeof checkNativeDecline === 'function') checkNativeDecline();",
+                    null
+                );
             }
         });
 
@@ -376,12 +371,12 @@ public void chooseRingtone() {
     }
 
     private void ensurePermissionsThenLoad() {
-    webView.loadUrl(YAARO_URL);
-
-    if (!hasAllPermissions()) {
-        requestAndroidPermissions();
+        webView.loadUrl(YAARO_URL);
+        if (!hasAllPermissions()) {
+            requestAndroidPermissions();
+        }
     }
-}
+
     private boolean hasAllPermissions() {
         for (String p : getRequiredPermissions()) {
             if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
@@ -428,27 +423,25 @@ public void chooseRingtone() {
         }
     }
 
-@Override
-protected void onResume() {
-    super.onResume();
-    isAppForeground = true;
-
-    if (webView != null) {
-        webView.onResume();
-        webView.evaluateJavascript(
-            "if (typeof checkNativeAccept === 'function') " +
-            "checkNativeAccept();",
-            null
-        );
+    @Override
+    protected void onResume() {
+        super.onResume();
+        isAppForeground = true;
+        if (webView != null) {
+            webView.onResume();
+            webView.evaluateJavascript(
+                "if (typeof checkNativeAccept === 'function') checkNativeAccept();",
+                null
+            );
+        }
     }
-}
 
     @Override
     protected void onPause() {
-    isAppForeground = false;
-    if (webView != null) webView.onPause();
-    super.onPause();
-}
+        isAppForeground = false;
+        if (webView != null) webView.onPause();
+        super.onPause();
+    }
 
     @Override
     protected void onDestroy() {
