@@ -55,7 +55,8 @@ public final class NativeCallSignaling {
                 }
                 String status = snapshot.child("status").getValue(String.class);
                 if (status != null) listener.onCallStatus(status);
-                if (!"ringing".equals(status) && !"accepted".equals(status) && !"connected".equals(status)) return;
+                if (!"ringing".equals(status) && !"accepted".equals(status) &&
+                        !"answered".equals(status) && !"connected".equals(status)) return;
                 String type = snapshot.child("offer").child("type").getValue(String.class);
                 String sdp = snapshot.child("offer").child("sdp").getValue(String.class);
                 if ("offer".equals(type) && sdp != null && !sdp.isEmpty()) {
